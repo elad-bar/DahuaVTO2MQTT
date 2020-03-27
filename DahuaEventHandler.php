@@ -41,11 +41,12 @@ class DahuaVTOEventListener {
 		$server = getenv("MQTT_BROKER_HOST");
 		$port = getenv("MQTT_BROKER_PORT");
 		$username = getenv("MQTT_BROKER_USERNAME");
-		$password = getenv("MQTT_BROKER_PASSWORD");
-		$client_id = "dahua-vto";
+		$password = getenv("MQTT_BROKER_PASSWORD");		
+		$topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");		
+		$client_id = "dahua-vto-".strtolower($topicPrefix);
 
 		$mqtt_message = json_encode($payload);
-		$topic = "DahuaVTO/".$name."/Event";
+		$topic = $topicPrefix."/".$name."/Event";
 		$log_message = "Topic: ".$topic.", Payload: ".$mqtt_message;
 		
 		try {

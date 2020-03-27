@@ -8,17 +8,19 @@ All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> wh
 Original code can be found in <a href="https://github.com/riogrande75/Dahua">@riogrande75/Dahua</a>
 
 ## Change-log
+2020-Mar-27 - Added new environment variable - MQTT_BROKER_TOPIC_PREFIX
 2020-Feb-03 - Initial version combing the event listener with MQTT
 
 ## Environment Variables
 ```
-DAHUA_VTO_HOST: 		Dahua VTO hostname or IP
-DAHUA_VTO_USERNAME: 	Dahua VTO username to access (should be admin)
-DAHUA_VTO_PASSWORD: 	Dahua VTO administrator password (same as accessing web management)
-MQTT_BROKER_HOST: 		MQTT Broker hostname or IP
-MQTT_BROKER_PORT: 		MQTT Broker port, default=1883
-MQTT_BROKER_USERNAME: 	MQTT Broker username
-MQTT_BROKER_PASSWORD: 	MQTT Broker password
+DAHUA_VTO_HOST: 			Dahua VTO hostname or IP
+DAHUA_VTO_USERNAME: 		Dahua VTO username to access (should be admin)
+DAHUA_VTO_PASSWORD: 		Dahua VTO administrator password (same as accessing web management)
+MQTT_BROKER_HOST: 			MQTT Broker hostname or IP
+MQTT_BROKER_PORT: 			MQTT Broker port, default=1883
+MQTT_BROKER_USERNAME: 		MQTT Broker username
+MQTT_BROKER_PASSWORD: 		MQTT Broker password
+MQTT_BROKER_TOPIC_PREFIX: 	MQTT Broker topic prefix, default=DahuaVTO
 ```
 
 ## Run manually
@@ -46,11 +48,12 @@ services:
       - MQTT_BROKER_HOST=mqtt-host
       - MQTT_BROKER_PORT=1883
       - MQTT_BROKER_USERNAME=Username
-      - MQTT_BROKER_PASSWORD=Password  
+      - MQTT_BROKER_PASSWORD=Password 
+      - MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
 ```
 
 ## MQTT Message (Dahua VTO Event Payload)
-Topic will be always DahuaVTO/[EVENT NAME]/Event
+Topic will be always [MQTT_BROKER_TOPIC_PREFIX]/[EVENT NAME]/Event
 Message represent an event
 
 #### Events (With dedicated additional data)
