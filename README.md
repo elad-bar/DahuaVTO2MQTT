@@ -5,11 +5,6 @@ Listens to events from Dahua VTO unit and publishes them via MQTT Message
 
 [Supported Models](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/SupportedModels.md)
 
-## Changelog
-2020-Sep-04 - Edit Readme file, Added Supported Models and MQTT Events documentation
-2020-Mar-27 - Added new environment variable - MQTT_BROKER_TOPIC_PREFIX
-2020-Feb-03 - Initial version combing the event listener with MQTT
-
 ## Environment Variables
 ```
 DAHUA_VTO_HOST: 			Dahua VTO hostname or IP
@@ -51,6 +46,11 @@ services:
       - MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
 ```
 
+## Changelog
+
+- 2020-Sep-04 - Edit Readme file, Added Supported Models and MQTT Events documentation
+- 2020-Mar-27 - Added new environment variable - MQTT_BROKER_TOPIC_PREFIX
+- 2020-Feb-03 - Initial version combing the event listener with MQTT
 
 ## Credits
 All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> who wrote that complicated integration
