@@ -15,7 +15,9 @@ function logging($text){
 }
 
 class DahuaVTOEventListener { 
-    private $sock, $host, $port, $credentials;
+    private $sock, $dahua_host, $dahua_port, $dahua_password;
+	private $mqtt_server, $mqtt_port, $mqtt_username, $mqtt_password, $mqtt_topicPrefix, $mqtt_client_id;
+	private $serialNumber, $deviceType;
     private $ID = 0;                        # Our Request / Responce ID that must be in all requests and initated by us
     private $SessionID = 0;                 # Session ID will be returned after successful login
     private $SID = 0;                       # SID will be returned after we called <service>.attach with 'Object ID'
@@ -25,12 +27,34 @@ class DahuaVTOEventListener {
     private $lastKeepAlive = 0;
 
     function DahuaVTOEventListener() {
-        $this->host = getenv("DAHUA_VTO_HOST");
-        $this->username = getenv("DAHUA_VTO_USERNAME");
-        $this->password = getenv("DAHUA_VTO_PASSWORD");
+        $this->dahua_host = getenv("DAHUA_VTO_HOST");
+        $this->dahua_username = getenv("DAHUA_VTO_USERNAME");
+        $this->dahua_password = getenv("DAHUA_VTO_PASSWORD");
+		
+		$this->mqtt_server = getenv("MQTT_BROKER_HOST");
+		$this->mqtt_port = getenv("MQTT_BROKER_PORT");
+		$this->mqtt_username = getenv("MQTT_BROKER_USERNAME");
+		$this->mqtt_password = getenv("MQTT_BROKER_PASSWORD");		
+		$this->mqtt_topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");
+		
+		$this->mqtt_client_id = "dahua-vto-".strtolower($this->mqtt_topicPrefix);	
+
+		$this->init_mqtt();
     }
+	
+	function init_mqtt() {
+		$this->SetDeviceDetails();
+		
+		$mqtt = new phpMQTT($this->mqtt_server, $this->mqtt_port, $this->mqtt_client_id);
+		$mqtt->connect_auto(true, NULL, $this->mqtt_username, $this->mqtt_password);
+		
+		$this->mqtt = $mqtt;
+	}
     
-	function Gen_md5_hash($Dahua_random, $Dahua_realm, $username, $password) {
+	function Gen_md5_hash($Dahua_random, $Dahua_realm) {
+		$username = $this->dahua_username;
+		$password = $this->dahua_password;
+		
         $PWDDB_HASH = strtoupper(md5($username.':'.$Dahua_realm.':'.$password));
         $PASS = $username.':'.$Dahua_random.':'.$PWDDB_HASH;
         $RANDOM_HASH = strtoupper(md5($PASS));
@@ -38,32 +62,23 @@ class DahuaVTOEventListener {
     }
 	
 	function publish($name, $payload){
-		$server = getenv("MQTT_BROKER_HOST");
-		$port = getenv("MQTT_BROKER_PORT");
-		$username = getenv("MQTT_BROKER_USERNAME");
-		$password = getenv("MQTT_BROKER_PASSWORD");		
-		$topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");		
-		$client_id = "dahua-vto-".strtolower($topicPrefix);
-
+		$payload["deviceType"] = $this->deviceType;
+		$payload["serialNumber"] = $this->serialNumber;
+		
 		$mqtt_message = json_encode($payload);
-		$topic = $topicPrefix."/".$name."/Event";
+		$topic = $this->mqtt_topicPrefix."/".$name."/Event";
 		$log_message = "Topic: ".$topic.", Payload: ".$mqtt_message;
 		
 		try {
-			$mqtt = new phpMQTT($server, $port, $client_id);
-			
-            if ($mqtt->connect(true, NULL, $username, $password)) {
-				$mqtt->publish($topic, $mqtt_message, 0);
-				$mqtt->close();
+			$mqtt = $this->mqtt;
+			$mqtt->publish($topic, $mqtt_message, 0);
 				
-				logging("MQTT message published, ".$log_message);
-				
-			} else {
-				logging("Failed to publish MQTT message due to timeout, ".$log_message);
-			}
+			logging("MQTT message published, ".$log_message);
         } 
 		catch (Exception $e) {
 			logging("Failed to publish MQTT message due to error: ".$e.", ".$log_message);
+			
+			$this->init_mqtt();
         }
 	}
 	
@@ -216,7 +231,7 @@ class DahuaVTOEventListener {
                 'ipAddr'=>$this->FakeIPaddr,
                 'loginType'=>"Direct",
                 'password'=>"",
-                'userName'=>$this->username,
+                'userName'=>$this->dahua_username,
                 ),
             'session'=>0
             );
@@ -235,7 +250,7 @@ class DahuaVTOEventListener {
         $RANDOM = $data['params']['random'];
         $REALM = $data['params']['realm'];
 
-        $RANDOM_HASH = $this->Gen_md5_hash($RANDOM, $REALM, $this->username, $this->password);
+        $RANDOM_HASH = $this->Gen_md5_hash($RANDOM, $REALM);
 
         $query_args = array(
             'id'=>10000,
@@ -243,7 +258,7 @@ class DahuaVTOEventListener {
             'method'=>"global.login",
             'session'=>$this->SessionID,
             'params'=>array(
-                'userName'=>$this->username,
+                'userName'=>$this->dahua_username,
                 'password'=>$RANDOM_HASH,
                 'clientType'=>$this->clientType,
                 'ipAddr'=>$this->FakeIPaddr,
@@ -279,7 +294,7 @@ class DahuaVTOEventListener {
             }
 			
             $error = true;
-            $this->sock = @fsockopen($this->host, 5000, $errno, $errstr, 5);
+            $this->sock = @fsockopen($this->dahua_host, 5000, $errno, $errstr, 5);
 			
             if($errno){
                 logging("Socket open failed");
@@ -471,14 +486,47 @@ class DahuaVTOEventListener {
 		return true;
 	}
 	
-	function SaveSnapshot($path="/tmp/") {
-		$filename = $path."/DoorBell_".date("Y-m-d_H-i-s").".jpg";
-		$fp = fopen($filename, 'wb');
-		$url = "http://".$this->host."/cgi-bin/snapshot.cgi";
+	function SetDeviceDetails() {
+		$credentials = $this->dahua_username . ":" . $this->dahua_password;
+		$url = "http://".$this->dahua_host."/cgi-bin/magicBox.cgi?action=getSystemInfo";
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
-		curl_setopt($ch, CURLOPT_USERPWD, $this->username . ":" . $this->password);
+		curl_setopt($ch, CURLOPT_USERPWD, $credentials);
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_HTTPGET, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		$data = curl_exec($ch);
+		
+		curl_close($ch);
+		
+		$data_items = explode(PHP_EOL, $data);
+		
+		foreach ($data_items as $data_item) {
+			$data_item_parts = explode("=", $data_item);
+			$data_item_key = $data_item_parts[0];
+			$data_item_value = substr($data_item_parts[1], 0, -1);
+			
+			if($data_item_key == "deviceType") {
+				$this->deviceType = $data_item_value;
+				logging("Device Type: ".$this->deviceType);
+			}
+			else if($data_item_key == "serialNumber") {
+				$this->serialNumber = $data_item_value;
+				logging("Serial Number: ".$this->serialNumber);
+			}
+		}
+	}
+	
+	function SaveSnapshot($path="/tmp/") {
+		$filename = $path."/DoorBell_".date("Y-m-d_H-i-s").".jpg";
+		$fp = fopen($filename, 'wb');
+		$url = "http://".$this->dahua_host."/cgi-bin/snapshot.cgi";
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+		curl_setopt($ch, CURLOPT_USERPWD, $this->dahua_username . ":" . $this->dahua_password);
 		curl_setopt($ch, CURLOPT_FILE, $fp);
 		curl_setopt($ch, CURLOPT_HEADER, 0);
 		curl_setopt($ch, CURLOPT_HTTPGET, 1);
