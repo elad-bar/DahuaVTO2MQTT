@@ -1,10 +1,9 @@
-FROM php:7.2.2-apache
+FROM php:7.4.11-cli
 MAINTAINER Elad Bar <elad.bar@hotmail.com>
 
 WORKDIR /app
 
-COPY DahuaEventHandler.php ./DahuaVTO.php
-COPY phpMQTT.php ./phpMQTT.php
+COPY *.php ./
 
 ENV DAHUA_VTO_HOST=vto-host
 ENV DAHUA_VTO_USERNAME=Username

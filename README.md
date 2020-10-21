@@ -23,7 +23,7 @@ Requirements:
 * PHP
 
 ```
-php -f DahuaEventHandler.php
+php -f DahuaVTO.php
 ```
 
 ## Docker Compose
@@ -48,6 +48,7 @@ services:
 
 ## Changelog
 
+- 2020-Oct-21 - Reverted connection to per message, docker based image changed to php:7.4.11-cli
 - 2020-Oct-12 - Added deviceType and serialNumber to MQTT message's payload, Improved connection to one time instead of per message
 - 2020-Sep-04 - Edit Readme file, Added Supported Models and MQTT Events documentation
 - 2020-Mar-27 - Added new environment variable - MQTT_BROKER_TOPIC_PREFIX
