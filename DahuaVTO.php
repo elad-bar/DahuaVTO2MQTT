@@ -13,42 +13,66 @@ function logging($text){
     $date = new DateTime();
     $now = date_format($date, 'Y-m-d H:i:s');
 
-	echo "{$text}\n";
+	echo "{$now}\t{$text}\n";
 }
 
 class MQTTManager {
-    private $mqtt_server, $mqtt_port, $mqtt_username, $mqtt_password, $mqtt_topicPrefix, $mqtt_client_id;
+    private $host,
+            $port,
+            $username,
+            $password,
+            $topicPrefix,
+            $client_id,
+            $mqtt;
 
     function MQTTManager() {
-        $this->mqtt_server = getenv("MQTT_BROKER_HOST");
-		$this->mqtt_port = getenv("MQTT_BROKER_PORT");
-		$this->mqtt_username = getenv("MQTT_BROKER_USERNAME");
-		$this->mqtt_password = getenv("MQTT_BROKER_PASSWORD");
-		$this->mqtt_topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");
+        $this->host = getenv("MQTT_BROKER_HOST");
+		$this->port = getenv("MQTT_BROKER_PORT");
+		$this->username = getenv("MQTT_BROKER_USERNAME");
+		$this->password = getenv("MQTT_BROKER_PASSWORD");
+		$this->topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");
 
-		$this->mqtt_client_id = strtolower("dahua-vto-{$this->mqtt_topicPrefix}");
+		$this->client_id = strtolower("dahua-vto-{$this->topicPrefix}");
     }
 
+    function connect() {
+        logging("MQTTManager::connect Connecting");
+
+        if(!is_null($this->mqtt)) {
+            $this->mqtt->close();
+        }
+
+        $this->mqtt = new phpMQTT($this->host, $this->port, $this->client_id);
+
+        $connected = $this->mqtt->connect(true, NULL, $this->username, $this->password);
+
+        return $connected;
+    }
+
+    function validateConnection() {
+        $now = new DateTime();
+	    $diff = $this->lastConnection->getTimestamp() - $now->getTimestamp();
+
+	    if ($diff > 60) {
+	        $this->connect();
+	    }
+	}
+
+	function updateLastConnection() {
+	    $now = new DateTime();
+        $this->lastConnection = $now;
+	}
+
 	function publish($name, $payload){
-		$payload["deviceType"] = $this->deviceType;
-		$payload["serialNumber"] = $this->serialNumber;
-
-		$mqtt_message = json_encode($payload);
-		$topic = "{$this->mqtt_topicPrefix}/{$name}/Event";
-
-		logging("MQTTManager::publish Publishing '{$topic}', message: {$mqtt_message}");
+	    $message = json_encode($payload);
+		$topic = "{$this->topicPrefix}/{$name}/Event";
 
 		try {
-		    $mqtt = new phpMQTT($this->mqtt_server, $this->mqtt_port, $this->mqtt_client_id);
+		    $this->connect();
 
-		    if ($mqtt->connect(true, NULL, $this->mqtt_username, $this->mqtt_password)) {
-                $mqtt->publish($topic, $mqtt_message, 0, false);
-                $mqtt->close();
+		    $this->mqtt->publish($topic, $message, 0, false);
 
-                logging("MQTTManager::publish Published topic '{$topic}'");
-            } else {
-                logging("MQTTManager::publish Failed publishing '{$topic}' due to timeout");
-            }
+            logging("MQTTManager::publish Published topic '{$topic}', message: {$message}");
         }
 		catch (Exception $e) {
 		    logging("MQTTManager::publish Failed publishing '{$topic}' due to error: {$e}");
@@ -63,6 +87,8 @@ class DahuaVTOAPI {
         $this->dahua_host = getenv("DAHUA_VTO_HOST");
         $this->dahua_username = getenv("DAHUA_VTO_USERNAME");
         $this->dahua_password = getenv("DAHUA_VTO_PASSWORD");
+
+        $this->SetDeviceDetails();
     }
 
     function GetSerialNumber() {
@@ -74,36 +100,41 @@ class DahuaVTOAPI {
     }
 
     function SetDeviceDetails() {
-		$credentials = "{$this->dahua_username}:{$this->dahua_password}";
-		$url = "http://{$this->dahua_host}/cgi-bin/magicBox.cgi?action=getSystemInfo";
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
-		curl_setopt($ch, CURLOPT_USERPWD, $credentials);
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		curl_setopt($ch, CURLOPT_HTTPGET, 1);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		$data = curl_exec($ch);
+        try {
+            $credentials = "{$this->dahua_username}:{$this->dahua_password}";
+            $url = "http://{$this->dahua_host}/cgi-bin/magicBox.cgi?action=getSystemInfo";
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+            curl_setopt($ch, CURLOPT_USERPWD, $credentials);
+            curl_setopt($ch, CURLOPT_HEADER, 0);
+            curl_setopt($ch, CURLOPT_HTTPGET, 1);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            $data = curl_exec($ch);
 
-		curl_close($ch);
+            curl_close($ch);
 
-		$data_items = explode(PHP_EOL, $data);
+            $data_items = explode(PHP_EOL, $data);
 
-		foreach ($data_items as $data_item) {
-			$data_item_parts = explode("=", $data_item);
-			$data_item_key = $data_item_parts[0];
-			$data_item_value = substr($data_item_parts[1], 0, -1);
+            foreach ($data_items as $data_item) {
+                $data_item_parts = explode("=", $data_item);
+                $data_item_key = $data_item_parts[0];
+                $data_item_value = substr($data_item_parts[1], 0, -1);
 
-			if($data_item_key == "deviceType") {
-				$this->deviceType = $data_item_value;
-				logging("DahuaVTOAPI::SetDeviceDetails Device Type: {$this->deviceType}");
-			}
-			else if($data_item_key == "serialNumber") {
-				$this->serialNumber = $data_item_value;
-				logging("DahuaVTOAPI::SetDeviceDetails Serial Number: {$this->serialNumber}");
-			}
-		}
+                if($data_item_key == "deviceType") {
+                    $this->deviceType = $data_item_value;
+                    logging("DahuaVTOAPI::SetDeviceDetails Device Type: {$this->deviceType}");
+                }
+                else if($data_item_key == "serialNumber") {
+                    $this->serialNumber = $data_item_value;
+                    logging("DahuaVTOAPI::SetDeviceDetails Serial Number: {$this->serialNumber}");
+                }
+            }
+        }
+		catch (Exception $e) {
+            logging("DahuaVTOAPI::SetDeviceDetails Failed to get device type & SN due to error: {$e}");
+        }
 	}
 
 	function SaveSnapshot($path="/tmp/") {
@@ -146,8 +177,6 @@ class DahuaVTOEventListener {
 
         $this->mqtt_manager = new MQTTManager();
         $this->dahua_api = new DahuaVTOAPI();
-
-		$this->dahua_api->SetDeviceDetails();
     }
 
 	function Gen_md5_hash($Dahua_random, $Dahua_realm) {
