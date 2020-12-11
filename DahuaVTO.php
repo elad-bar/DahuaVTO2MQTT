@@ -1,89 +1,15 @@
 <?PHP
+use Mosquitto\Client;
 
-require('phpMQTT.php');
-
-$debug = true;
-
-logging("<*** Dahua VTO Event Listener START ***>");
-
-$Dahua = new DahuaVTOEventListener();
-$Dahua->Main();
-
-function logging($text){
-    $date = new DateTime();
-    $now = date_format($date, 'Y-m-d H:i:s');
-
-	echo "{$now}\t{$text}\n";
-}
-
-class MQTTManager {
-    private $host,
-            $port,
-            $username,
-            $password,
-            $topicPrefix,
-            $client_id,
-            $mqtt;
-
-    function MQTTManager() {
-        $this->host = getenv("MQTT_BROKER_HOST");
-		$this->port = getenv("MQTT_BROKER_PORT");
-		$this->username = getenv("MQTT_BROKER_USERNAME");
-		$this->password = getenv("MQTT_BROKER_PASSWORD");
-		$this->topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");
-
-		$this->client_id = strtolower("dahua-vto-{$this->topicPrefix}");
-    }
-
-    function connect() {
-        logging("MQTTManager::connect Connecting");
-
-        if(!is_null($this->mqtt)) {
-            $this->mqtt->close();
-        }
-
-        $this->mqtt = new phpMQTT($this->host, $this->port, $this->client_id);
-
-        $connected = $this->mqtt->connect(true, NULL, $this->username, $this->password);
-
-        return $connected;
-    }
-
-    function validateConnection() {
-        $now = new DateTime();
-	    $diff = $this->lastConnection->getTimestamp() - $now->getTimestamp();
-
-	    if ($diff > 60) {
-	        $this->connect();
-	    }
-	}
-
-	function updateLastConnection() {
-	    $now = new DateTime();
-        $this->lastConnection = $now;
-	}
-
-	function publish($name, $payload){
-	    $message = json_encode($payload);
-		$topic = "{$this->topicPrefix}/{$name}/Event";
-
-		try {
-		    $this->connect();
-
-		    $this->mqtt->publish($topic, $message, 0, false);
-
-            logging("MQTTManager::publish Published topic '{$topic}', message: {$message}");
-        }
-		catch (Exception $e) {
-		    logging("MQTTManager::publish Failed publishing '{$topic}' due to error: {$e}");
-        }
-	}
-}
+$dahua = new DahuaVTOEventListener();
 
 class DahuaVTOAPI {
+    private $logger;
     private $serialNumber, $deviceType;
 
     function DahuaVTOAPI() {
+        $this->logger = new Logger("DahuaVTOAPI");
+
         $this->dahua_host = getenv("DAHUA_VTO_HOST");
         $this->dahua_username = getenv("DAHUA_VTO_USERNAME");
         $this->dahua_password = getenv("DAHUA_VTO_PASSWORD");
@@ -124,16 +50,16 @@ class DahuaVTOAPI {
 
                 if($data_item_key == "deviceType") {
                     $this->deviceType = $data_item_value;
-                    logging("DahuaVTOAPI::SetDeviceDetails Device Type: {$this->deviceType}");
+                    $this->logger->debug("SetDeviceDetails", "Device Type: {$this->deviceType}");
                 }
                 else if($data_item_key == "serialNumber") {
                     $this->serialNumber = $data_item_value;
-                    logging("DahuaVTOAPI::SetDeviceDetails Serial Number: {$this->serialNumber}");
+                    $this->logger->debug("SetDeviceDetails", "Serial Number: {$this->serialNumber}");
                 }
             }
         }
 		catch (Exception $e) {
-            logging("DahuaVTOAPI::SetDeviceDetails Failed to get device type & SN due to error: {$e}");
+            $this->logger->error("SetDeviceDetails", "Failed to get device type & SN due to error: {$e}");
         }
 	}
 
@@ -158,7 +84,17 @@ class DahuaVTOAPI {
 
 }
 
-class DahuaVTOEventListener { 
+class DahuaVTOEventListener {
+    private $host,
+            $port,
+            $username,
+            $password,
+            $topicPrefix,
+            $client_id,
+            $mqtt,
+            $dahuaVTOEventListener;
+
+    private $logger;
     private $sock, $dahua_host, $dahua_port, $dahua_password;
     private $mqtt_manager;
     private $dahua_api;
@@ -171,13 +107,82 @@ class DahuaVTOEventListener {
     private $lastKeepAlive = 0;
 
     function DahuaVTOEventListener() {
+        $this->logger = new Logger("DahuaVTOEventListener");
+
         $this->dahua_host = getenv("DAHUA_VTO_HOST");
         $this->dahua_username = getenv("DAHUA_VTO_USERNAME");
         $this->dahua_password = getenv("DAHUA_VTO_PASSWORD");
 
-        $this->mqtt_manager = new MQTTManager();
         $this->dahua_api = new DahuaVTOAPI();
+
+        $this->mqtt_host = getenv("MQTT_BROKER_HOST");
+		$this->mqtt_port = getenv("MQTT_BROKER_PORT");
+		$this->mqtt_username = getenv("MQTT_BROKER_USERNAME");
+		$this->mqtt_password = getenv("MQTT_BROKER_PASSWORD");
+		$this->mqtt_topicPrefix = getenv("MQTT_BROKER_TOPIC_PREFIX");
+
+		$this->mqtt_client_id = strtolower("dahuavto_{$this->mqtt_topicPrefix}");
+
+        $this->mqtt = new Mosquitto\Client($this->mqtt_client_id);
+
+        $this->connect();
     }
+
+    function connect() {
+        try {
+            $this->mqtt->setWill("{$this->mqtt_topicPrefix}/lwt", "connected", 1, false);
+            $this->mqtt->setCredentials($this->mqtt_username, $this->mqtt_password);
+
+            $this->mqtt->onLog(function($level, $str) {
+                $this->logger->debug("MQTTLog", "$level - $str");
+            });
+
+            $this->mqtt->onDisconnect(function($rc) {
+                $this->logger->error("MQTTDisconnect", "$code");
+            });
+
+            $this->mqtt->onPublish(function($mid) {
+                $this->logger->debug("MQTTPublish", "Message Id: $mid");
+            });
+
+            $this->mqtt->onSubscribe(function($mid) {
+                $this->logger->debug("MQTTSubscribe", "Message Id: $mid");
+            });
+
+            $this->mqtt->onMessage(function($message) {
+                $this->logger->debug("MQTTMessage", "Message: $message");
+            });
+
+            $this->mqtt->onConnect(function($rc, $message) {
+                $this->logger->debug("MQTTConnect", "$message [$rc]");
+            });
+
+            $this->mqtt->connect($this->mqtt_host, $this->mqtt_port, 300);
+
+            $this->mqtt->subscribe("{$this->mqtt_topicPrefix}/#", 0);
+
+            $this->Start();
+
+            $this->mqtt->loopForever();
+        }
+		catch (Exception $e) {
+		    $this->logger->error("connect", "Failed to connect due to error: {$e}");
+        }
+    }
+
+	function publish($name, $payload){
+	    $message = json_encode($payload);
+		$topic = "{$this->mqtt_topicPrefix}/{$name}/Event";
+
+		try {
+		    $this->mqtt->publish($topic, $message, 0, false);
+
+            $this->logger->debug("public", "Message: {$message}");
+        }
+		catch (Exception $e) {
+		    $this->logger->error("public", "Failed publishing '{$topic}' due to error: {$e}");
+        }
+	}
 
 	function Gen_md5_hash($Dahua_random, $Dahua_realm) {
 		$username = $this->dahua_username;
@@ -195,7 +200,7 @@ class DahuaVTOEventListener {
     function KeepAlive($delay){
 		global $debug;
 		
-        logging("DahuaVTOEventListener::KeepAlive Started keepAlive thread");
+        $this->logger->debug("KeepAlive", "Started keepAlive thread");
         
 		while(true){
             $query_args = array(
@@ -220,10 +225,15 @@ class DahuaVTOEventListener {
                         $packet = json_decode($packet, true);
 						
                         if (array_key_exists('result', $packet)){
-                            if($debug) {
-								logging("DahuaVTOEventListener::KeepAlive keepAlive back");
-							}
-							
+                            $payload = array(
+                                    "deviceType" => $this->dahua_api->GetDeviceType(),
+                                    "serialNumber" => $this->dahua_api->GetSerialNumber()
+                                );
+
+                            $this->publish("keepAlive", $payload);
+
+                            $this->logger->debug("KeepAlive", "keepAlive back");
+
                             $keepAliveReceived = true;
                         }
                         elseif ($packet['method'] == 'client.notifyEventStream'){
@@ -233,7 +243,7 @@ class DahuaVTOEventListener {
                 }
             }
             if (!$keepAliveReceived) {
-                logging("DahuaVTOEventListener::KeepAlive keepAlive failed");
+                $this->logger->debug("KeepAlive", "keepAlive failed");
                 return false;
             }
         }
@@ -253,7 +263,7 @@ class DahuaVTOEventListener {
         $header .= pack("V",0);
 
         if (strlen($header) != 32){
-            logging("DahuaVTOEventListener::Send Binary header != 32 ({})");
+            $this->logger->debug("Send", "Send Binary header != 32 ({})");
             return;
         }
 
@@ -264,7 +274,7 @@ class DahuaVTOEventListener {
             $result = fwrite($this->sock, $msg);
         } 
 		catch (Exception $e) {
-            logging("DahuaVTOEventListener::Send Failed sending request due to error: {$e}");
+            $this->logger->error("Send", "Failed sending request due to error: {$e}");
         }
     }
 	
@@ -330,7 +340,7 @@ class DahuaVTOEventListener {
 	
     function Login()
     {
-        logging("DahuaVTOEventListener::Login Started");
+        $this->logger->debug("Login", "Started");
 
         $query_args = array(
             'id'=>10000,
@@ -350,7 +360,7 @@ class DahuaVTOEventListener {
         $data = $this->Receive();
 		
         if (empty($data)){
-            logging("global.login [random]");
+            $this->logger->debug("Login", "global.login [random]");
             return false;
         }
 		
@@ -387,17 +397,20 @@ class DahuaVTOEventListener {
 		$data = json_decode($data[0], true);
         
 		if (array_key_exists('result', $data) && $data['result']){
-            logging("DahuaVTOEventListener::Login Completed successfully");
+            $this->logger->debug("Login", "Completed successfully");
             $this->keepAliveInterval = $data['params']['keepAliveInterval'];
             return true;
         }
 
 		$error_message = json_encode($data);
-        logging("DahuaVTOEventListener::Login failed due to error: {$error_message}");
+        $this->logger->debug("Login", "failed due to error: {$error_message}");
         return false;
     }
 	
-    function Main($reconnectTimeout=60) {
+    function Start($reconnectTimeout=60) {
+        $this->logger->debug("Main", "Dahua VTO Event Listener START");
+
+
         $error = false;
         while (true){
             if($error){
@@ -408,7 +421,7 @@ class DahuaVTOEventListener {
             $this->sock = @fsockopen($this->dahua_host, 5000, $errno, $errstr, 5);
 			
             if($errno){
-                logging("DahuaVTOEventListener::Main Socket open failed");
+                $this->logger->debug("Main", "Socket open failed");
                 continue;
             }
 			
@@ -431,7 +444,7 @@ class DahuaVTOEventListener {
             $data = $this->Receive();
 
             if (!count($data) || !array_key_exists('result', json_decode($data[0], true))){
-                logging("DahuaVTOEventListener::Main Failure eventManager.attach");
+                $this->logger->debug("Main", "Failure eventManager.attach");
                 continue;
             }
             else{
@@ -446,7 +459,7 @@ class DahuaVTOEventListener {
                 }
             }
             $this->KeepAlive($this->keepAliveInterval);
-            logging("DahuaVTOEventListener::Main Failure no keep alive received");
+            $this->logger->debug("Main", "Failure no keep alive received");
         }
     }
 	
@@ -454,7 +467,7 @@ class DahuaVTOEventListener {
 		$allEvents = $data['params']['eventList'];
 		
 		if(count($allEvents) > 1){
-			logging("DahuaVTOEventListener::Main Event Manager subscription reply");
+			$this->logger->debug("EventHandler", "Event Manager subscription reply");
 		}
 		else {		
 			foreach ($allEvents as $item) {
@@ -469,11 +482,34 @@ class DahuaVTOEventListener {
 					"serialNumber" => $this->dahua_api->GetSerialNumber()
 				);
 
-				$this->mqtt_manager->publish($eventCode, $payload);
+				$this->publish($eventCode, $payload);
 			}
 		}
 		
 		return true;
 	}
 }
+
+class Logger {
+    private $className = null;
+
+    function __construct($className){
+        $this->className = $className;
+	}
+
+    function getTime() {
+        $date = new DateTime();
+        $now = date_format($date, 'Y-m-d H:i:s');
+
+        return $now;
+    }
+
+    function debug($function, $message) {
+        echo "{$this->getTime()}\tDEBUG\t{$this->className}::{$function} {$message}\n";
+    }
+    function error($function, $message) {
+        echo "{$this->getTime()}\tERROR\t{$this->className}::{$function} {$message}\n";
+    }
+}
+
 ?>

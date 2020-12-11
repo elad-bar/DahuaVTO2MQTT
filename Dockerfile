@@ -5,6 +5,12 @@ WORKDIR /app
 
 COPY *.php ./
 
+RUN apt-get -y update
+RUN apt-get -y install libmosquitto-dev
+RUN pecl install Mosquitto-beta
+RUN docker-php-ext-enable mosquitto
+
+
 ENV DAHUA_VTO_HOST=vto-host
 ENV DAHUA_VTO_USERNAME=Username
 ENV DAHUA_VTO_PASSWORD=Password
