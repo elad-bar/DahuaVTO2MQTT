@@ -104,51 +104,69 @@ class DahuaVTOClient(asyncio.Protocol):
                 sleep(60)
 
     def connection_made(self, transport):
-        _LOGGER.info("Connection established")
+        _LOGGER.debug("Connection established")
 
-        self.transport = transport
+        try:
+            self.transport = transport
 
-        self.load_dahua_info()
-        self.initialize_mqtt_client()
-        self.pre_login()
+            self.load_dahua_info()
+            self.initialize_mqtt_client()
+            self.pre_login()
+
+        except Exception as ex:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+
+            _LOGGER.error(f"Failed to handle message, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     def data_received(self, data):
-        message = self.parse_response(data)
-        _LOGGER.info(f"Data received: {message}")
+        try:
+            message = self.parse_response(data)
+            _LOGGER.debug(f"Data received: {message}")
 
-        message_id = message.get("id")
-        params = message.get("params")
+            message_id = message.get("id")
+            params = message.get("params")
 
-        if message_id == 1:
-            error = message.get("error")
+            if message_id == 1:
+                error = message.get("error")
 
-            if error is not None:
-                self.handle_login_error(error, message, params)
+                if error is not None:
+                    self.handle_login_error(error, message, params)
 
-        elif message_id == 2:
-            self.handle_login(params)
+            elif message_id == 2:
+                self.handle_login(params)
 
-        else:
-            method = message.get("method")
+            else:
+                method = message.get("method")
 
-            if method == "client.notifyEventStream":
-                self.handle_notify_event_stream(params)
+                if method == "client.notifyEventStream":
+                    self.handle_notify_event_stream(params)
+
+        except Exception as ex:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+
+            _LOGGER.error(f"Failed to handle message, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     def handle_notify_event_stream(self, params):
-        event_list = params.get("eventList")
+        try:
+            event_list = params.get("eventList")
 
-        for message in event_list:
-            code = message.get("Code")
+            for message in event_list:
+                code = message.get("Code")
 
-            for k in self.dahua_details:
-                if k in DAHUA_ALLOWED_DETAILS:
-                    message[k] = self.dahua_details.get(k)
+                for k in self.dahua_details:
+                    if k in DAHUA_ALLOWED_DETAILS:
+                        message[k] = self.dahua_details.get(k)
 
-            topic = f"{self.mqtt_broker_topic_prefix}/{code}/Event"
+                topic = f"{self.mqtt_broker_topic_prefix}/{code}/Event"
 
-            _LOGGER.info(f"Publishing MQTT message {topic}: {message}")
+                _LOGGER.info(f"Publishing MQTT message {topic}: {message}")
 
-            self.mqtt_client.publish(topic, json.dumps(message, indent=4))
+                self.mqtt_client.publish(topic, json.dumps(message, indent=4))
+
+        except Exception as ex:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+
+            _LOGGER.error(f"Failed to handle event, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     def handle_login_error(self, error, message, params):
         error_message = error.get("message")
@@ -181,7 +199,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.transport.write(message_data.to_message())
 
     def pre_login(self):
-        _LOGGER.info("Prepare pre-login message")
+        _LOGGER.debug("Prepare pre-login message")
 
         message_data = MessageData(self.request_id, self.sessionId)
         message_data.login(self.username)
@@ -189,7 +207,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.transport.write(message_data.to_message())
 
     def login(self):
-        _LOGGER.info("Prepare login message")
+        _LOGGER.debug("Prepare login message")
 
         password = self._get_hashed_password(self.random, self.realm, self.username, self.password)
 
@@ -207,7 +225,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.send(message_data)
 
     def keep_alive(self):
-        _LOGGER.info("Keep alive")
+        _LOGGER.debug("Keep alive")
 
         message_data = MessageData(self.request_id, self.sessionId)
         message_data.keep_alive(self.keep_alive_interval)
@@ -218,7 +236,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
     def load_dahua_info(self):
         try:
-            _LOGGER.info("Loading Dahua details")
+            _LOGGER.debug("Loading Dahua details")
 
             url = f"http://{self.host}/cgi-bin/magicBox.cgi?action=getSystemInfo"
 
@@ -286,7 +304,7 @@ class DahuaVTOManager:
                 self._loop.run_forever()
                 self._loop.close()
 
-                _LOGGER.info("Disconnected, will try to connect in 60 seconds")
+                _LOGGER.debug("Disconnected, will try to connect in 60 seconds")
 
             except Exception as ex:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
