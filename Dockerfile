@@ -1,15 +1,13 @@
-FROM php:7.4.11-cli
+FROM python:3.9-alpine
 MAINTAINER Elad Bar <elad.bar@hotmail.com>
 
 WORKDIR /app
 
-COPY *.php ./
+COPY *.py ./
 
-RUN apt-get -y update
-RUN apt-get -y install libmosquitto-dev
-RUN pecl install Mosquitto-beta
-RUN docker-php-ext-enable mosquitto
-
+RUN apk update && \
+    apk upgrade && \
+    pip install paho-mqtt requests
 
 ENV DAHUA_VTO_HOST=vto-host
 ENV DAHUA_VTO_USERNAME=Username
@@ -20,4 +18,4 @@ ENV MQTT_BROKER_USERNAME=Username
 ENV MQTT_BROKER_PASSWORD=Password
 ENV MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
 
-CMD php -f /app/DahuaVTO.php
+ENTRYPOINT ["python3", "/app/DahuaVTO.py"]

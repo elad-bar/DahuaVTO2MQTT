@@ -20,10 +20,9 @@ MQTT_BROKER_TOPIC_PREFIX: 	MQTT Broker topic prefix, default=DahuaVTO
 ## Run manually
 Requirements:
 * All environment variables above
-* PHP
 
 ```
-php -f DahuaVTO.php
+python3 DahuaVTO.py
 ```
 
 ## Docker Compose
@@ -70,6 +69,9 @@ services:
 
 
 * 2020-Feb-03 - Initial version combing the event listener with MQTT
+
+
+* 2021-Jan-01 - Ported to Python
 
 
 ## Credits
