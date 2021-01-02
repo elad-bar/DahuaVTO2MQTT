@@ -15,6 +15,7 @@ MQTT_BROKER_PORT: 			MQTT Broker port, default=1883
 MQTT_BROKER_USERNAME: 		MQTT Broker username
 MQTT_BROKER_PASSWORD: 		MQTT Broker password
 MQTT_BROKER_TOPIC_PREFIX: 	MQTT Broker topic prefix, default=DahuaVTO
+DEBUG:                      Minimum log level (Debug / Info), default=False
 ```
 
 ## Run manually
@@ -43,6 +44,7 @@ services:
       - MQTT_BROKER_USERNAME=Username
       - MQTT_BROKER_PASSWORD=Password 
       - MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
+      - DEBUG=False
 ```
 
 ## Changelog
@@ -73,7 +75,8 @@ services:
 
 * 2021-Jan-01 - Ported to Python
 
-* 2021-Jan-02 - MQTT Keep Alive
+
+* 2021-Jan-02 - MQTT Keep Alive, log level control via DEBUG env. variable
 
 
 ## Credits

@@ -13,11 +13,15 @@ from requests.auth import HTTPDigestAuth
 
 from Messages import MessageData
 
+DEBUG = os.environ.get('DEBUG', False)
+
+log_level = logging.DEBUG if DEBUG else logging.INFO
+
 root = logging.getLogger()
-root.setLevel(logging.DEBUG)
+root.setLevel(log_level)
 
 handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
+handler.setLevel(log_level)
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
 handler.setFormatter(formatter)
 root.addHandler(handler)
