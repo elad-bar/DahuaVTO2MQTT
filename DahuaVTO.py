@@ -17,7 +17,7 @@ root = logging.getLogger()
 root.setLevel(logging.DEBUG)
 
 handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.INFO)
+handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
 handler.setFormatter(formatter)
 root.addHandler(handler)
@@ -72,6 +72,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
 
         self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
+        self.mqtt_client.loop_start()
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
@@ -93,6 +94,7 @@ class DahuaVTOClient(asyncio.Protocol):
                 mqtt_broker_port = os.environ.get('MQTT_BROKER_PORT')
 
                 client.connect(mqtt_broker_host, int(mqtt_broker_port), 60)
+                client.loop_start()
 
                 connected = True
 

@@ -73,6 +73,8 @@ services:
 
 * 2021-Jan-01 - Ported to Python
 
+* 2021-Jan-02 - MQTT Keep Alive
+
 
 ## Credits
 All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> who wrote that complicated integration
