@@ -196,6 +196,8 @@ class DahuaVTOClient(asyncio.Protocol):
 
     def connection_lost(self, exc):
         _LOGGER.error('server closed the connection')
+        loop = asyncio.get_event_loop()
+        loop.stop() 
 
     def send(self, message_data: MessageData):
         self.request_id += 1
@@ -298,13 +300,13 @@ class DahuaVTOClient(asyncio.Protocol):
 class DahuaVTOManager:
     def __init__(self):
         self._host = os.environ.get('DAHUA_VTO_HOST')
-        self._loop = asyncio.get_event_loop()
 
     def initialize(self):
         while True:
             try:
                 _LOGGER.info("Connecting")
 
+                self._loop = asyncio.new_event_loop()
                 client = self._loop.create_connection(DahuaVTOClient, self._host, 5000)
                 self._loop.run_until_complete(client)
                 self._loop.run_forever()
