@@ -78,6 +78,8 @@ services:
 
 * 2021-Jan-02 - MQTT Keep Alive, log level control via DEBUG env. variable
 
+* 2021-Jan-15 - Fix [#19](https://github.com/elad-bar/DahuaVTO2MQTT/issues/19) - Reset connection after power failure or disconnection
+
 
 ## Credits
 All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> who wrote that complicated integration

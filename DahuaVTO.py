@@ -1,11 +1,13 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import logging
 import json
 import asyncio
 import hashlib
-from asyncio import sleep
 from threading import Timer
+from time import sleep
 from typing import Optional
 import paho.mqtt.client as mqtt
 import requests
@@ -65,6 +67,8 @@ class DahuaVTOClient(asyncio.Protocol):
         self.transport = None
 
         self.mqtt_client = mqtt.Client()
+
+        self._loop = asyncio.get_event_loop()
 
     def initialize_mqtt_client(self):
         _LOGGER.info("Connecting MQTT Broker")
@@ -197,6 +201,8 @@ class DahuaVTOClient(asyncio.Protocol):
     def connection_lost(self, exc):
         _LOGGER.error('server closed the connection')
 
+        self._loop.stop()
+
     def send(self, message_data: MessageData):
         self.request_id += 1
 
@@ -298,26 +304,27 @@ class DahuaVTOClient(asyncio.Protocol):
 class DahuaVTOManager:
     def __init__(self):
         self._host = os.environ.get('DAHUA_VTO_HOST')
-        self._loop = asyncio.get_event_loop()
 
     def initialize(self):
         while True:
             try:
                 _LOGGER.info("Connecting")
 
-                client = self._loop.create_connection(DahuaVTOClient, self._host, 5000)
-                self._loop.run_until_complete(client)
-                self._loop.run_forever()
-                self._loop.close()
+                loop = asyncio.new_event_loop()
 
-                _LOGGER.debug("Disconnected, will try to connect in 60 seconds")
+                client = loop.create_connection(DahuaVTOClient, self._host, 5000)
+                loop.run_until_complete(client)
+                loop.run_forever()
+                loop.close()
+
+                _LOGGER.warning("Disconnected, will try to connect in 30 seconds")
 
             except Exception as ex:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
 
                 _LOGGER.error(f"Connection failed, error: {ex}, Line: {exc_tb.tb_lineno}")
 
-            sleep(60)
+            sleep(30)
 
 
 manager = DahuaVTOManager()

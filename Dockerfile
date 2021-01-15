@@ -18,4 +18,6 @@ ENV MQTT_BROKER_USERNAME=Username
 ENV MQTT_BROKER_PASSWORD=Password
 ENV MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
 
+RUN chmod +x /app/DahuaVTO.py
+
 ENTRYPOINT ["python3", "/app/DahuaVTO.py"]
