@@ -78,7 +78,11 @@ services:
 
 * 2021-Jan-02 - MQTT Keep Alive, log level control via DEBUG env. variable
 
+
 * 2021-Jan-15 - Fix [#19](https://github.com/elad-bar/DahuaVTO2MQTT/issues/19) - Reset connection after power failure or disconnection
+
+
+* 2021-Jan-21 - Added open door action when publishing an MQTT message with the topic - {MQTT_BROKER_TOPIC_PREFIX}/Command/Open
 
 
 ## Credits

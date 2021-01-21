@@ -1,8 +1,17 @@
 # MQTT Message (Dahua VTO Event Payload)
+
+## Actions
+Publish MQTT Message to perform action
+
+### Open door
+```
+TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/Open
+```
+
+## Events (With dedicated additional data)
 Topic will be always [MQTT_BROKER_TOPIC_PREFIX]/[EVENT NAME]/Event
 Message represent an event
 
-## Events (With dedicated additional data)
 ```json
 {
     "deviceType":"Device Model",
