@@ -55,6 +55,7 @@ def access_control_open_door():
 
         _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
+
 class DahuaVTOClient(asyncio.Protocol):
     requestId: int
     sessionId: int
@@ -231,6 +232,11 @@ class DahuaVTOClient(asyncio.Protocol):
 
             self.attach_event_manager()
 
+    def eof_received(self):
+        _LOGGER.info('Server sent EOF message')
+
+        self._loop.stop()
+
     def connection_lost(self, exc):
         _LOGGER.error('server closed the connection')
 
@@ -241,7 +247,8 @@ class DahuaVTOClient(asyncio.Protocol):
 
         message_data.id = self.request_id
 
-        self.transport.write(message_data.to_message())
+        if not self.transport.is_closing():
+            self.transport.write(message_data.to_message())
 
     def pre_login(self):
         _LOGGER.debug("Prepare pre-login message")
@@ -249,7 +256,8 @@ class DahuaVTOClient(asyncio.Protocol):
         message_data = MessageData(self.request_id, self.sessionId)
         message_data.login(self.username)
 
-        self.transport.write(message_data.to_message())
+        if not self.transport.is_closing():
+            self.transport.write(message_data.to_message())
 
     def login(self):
         _LOGGER.debug("Prepare login message")
@@ -350,14 +358,17 @@ class DahuaVTOManager:
                 loop.run_forever()
                 loop.close()
 
-                _LOGGER.warning("Disconnected, will try to connect in 30 seconds")
+                _LOGGER.warning("Disconnected, will try to connect in 5 seconds")
+
+                sleep(5)
 
             except Exception as ex:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
+                line = exc_tb.tb_lineno
 
-                _LOGGER.error(f"Connection failed, error: {ex}, Line: {exc_tb.tb_lineno}")
+                _LOGGER.error(f"Connection failed will try to connect in 30 seconds, error: {ex}, Line: {line}")
 
-            sleep(30)
+                sleep(30)
 
 
 manager = DahuaVTOManager()
