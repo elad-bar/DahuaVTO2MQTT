@@ -8,6 +8,11 @@ Publish MQTT Message to perform action
 TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/Open
 ```
 
+### Open door (for using DEE1010B module)
+```
+TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/OpenSecondDoor
+```
+
 ## Events (With dedicated additional data)
 Topic will be always [MQTT_BROKER_TOPIC_PREFIX]/[EVENT NAME]/Event
 Message represent an event

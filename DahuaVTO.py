@@ -55,6 +55,28 @@ def access_control_open_door():
 
         _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
+def access_control_open_second_door():
+    try:
+        _LOGGER.debug("Access Control - Open second door")
+
+        host = os.environ.get('DAHUA_VTO_HOST')
+
+        username = os.environ.get('DAHUA_VTO_USERNAME')
+        password = os.environ.get('DAHUA_VTO_PASSWORD')
+
+        url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel=2&UserID=101&Type=Remote"
+
+        response = requests.get(url, auth=HTTPDigestAuth(username, password))
+
+        response.raise_for_status()
+
+        _LOGGER.info("Access Control - Second door was opened")
+
+    except Exception as ex:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+
+        _LOGGER.error(f"Failed to open second door, error: {ex}, Line: {exc_tb.tb_lineno}")
+
 
 class DahuaVTOClient(asyncio.Protocol):
     requestId: int
@@ -82,6 +104,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         self.mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         self.mqtt_open_door_topic = f"{self.mqtt_broker_topic_prefix}/Command/Open"
+        self.mqtt_open_second_door_topic = f"{self.mqtt_broker_topic_prefix}/Command/OpenSecondDoor"
 
         self.realm = None
         self.random = None
@@ -112,7 +135,9 @@ class DahuaVTOClient(asyncio.Protocol):
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
+        mqtt_open_second_door_topic = f"{mqtt_broker_topic_prefix}/Command/OpenSecondDoor"
         client.subscribe(mqtt_open_door_topic)
+        client.subscribe(mqtt_open_second_door_topic)
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
@@ -120,9 +145,12 @@ class DahuaVTOClient(asyncio.Protocol):
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
+        mqtt_open_second_door_topic = f"{mqtt_broker_topic_prefix}/Command/OpenSecondDoor"
 
         if msg.topic == mqtt_open_door_topic:
             access_control_open_door()
+        elif msg.topic == mqtt_open_second_door_topic:
+            access_control_open_second_door()
 
     @staticmethod
     def on_mqtt_disconnect(client, userdata, rc):
