@@ -44,7 +44,7 @@ def access_control_open_door():
 
         url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel=1&UserID=101&Type=Remote"
 
-        response = requests.get(url, auth=HTTPDigestAuth(username, password))
+        response = requests.get(url, verify=False, auth=HTTPDigestAuth(username, password))
 
         response.raise_for_status()
 
@@ -293,7 +293,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
             url = f"http://{self.host}/cgi-bin/magicBox.cgi?action=getSystemInfo"
 
-            response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password))
+            response = requests.get(url, verify=False, auth=HTTPDigestAuth(self.username, self.password))
 
             response.raise_for_status()
 
