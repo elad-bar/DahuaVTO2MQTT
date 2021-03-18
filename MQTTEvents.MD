@@ -6,6 +6,9 @@ Publish MQTT Message to perform action
 ### Open door
 ```
 TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/Open
+Payload:
+    - "1" - 1st Door
+    - "2" - 2nd Door
 ```
 
 ## Events (With dedicated additional data)
