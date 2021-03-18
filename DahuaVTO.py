@@ -143,7 +143,7 @@ class DahuaVTOClient(asyncio.Protocol):
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
 
         if msg.topic == mqtt_open_door_topic:
-	    if (msg.payload == '1'):
+            if (msg.payload == '1'):
                 access_control_open_door()
             elif (msg.payload == '2'):
                 access_control_open_door_2()
