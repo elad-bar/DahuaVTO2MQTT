@@ -145,7 +145,7 @@ class DahuaVTOClient(asyncio.Protocol):
         if msg.topic == mqtt_open_door_topic:
 	    if (msg.payload == '1'):
                 access_control_open_door()
-            if (msg.payload == '2'):
+            elif (msg.payload == '2'):
                 access_control_open_door_2()
 
     @staticmethod
