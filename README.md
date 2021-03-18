@@ -89,7 +89,7 @@ services:
 
 
 * 2021-Mar-18
-  * Updated {MQTT_BROKER_TOPIC_PREFIX}/Command/Open to support 2nd dorrs - added Payloads
+  * Update {MQTT_BROKER_TOPIC_PREFIX}/Command/Open to support both doors using Payload
   
   * HTTPs VTO support fixed
 
