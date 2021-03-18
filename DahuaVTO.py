@@ -32,7 +32,6 @@ _LOGGER = logging.getLogger(__name__)
 
 DAHUA_ALLOWED_DETAILS = ["deviceType", "serialNumber"]
 
-
 def access_control_open_door():
     try:
         _LOGGER.debug("Access Control - Open door")
