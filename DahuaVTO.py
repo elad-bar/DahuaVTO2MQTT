@@ -137,7 +137,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
-        _LOGGER.debug(f"MQTT Message {msg.topic}: {msg.payload.decode("utf-8")}")
+        _LOGGER.debug(f"MQTT Message {msg.topic}: {msg.payload.decode('utf-8')}")
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
