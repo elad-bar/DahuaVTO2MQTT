@@ -129,7 +129,6 @@ class DahuaVTOClient(asyncio.Protocol):
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
-        msg.payload = msg.payload.decode('utf-8')
         _LOGGER.info(f"MQTT Broker connected with result code {rc}")
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
@@ -138,6 +137,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
+        msg.payload = msg.payload.decode('utf-8')
         _LOGGER.debug(f"MQTT Message {msg.topic}: {msg.payload}")
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
