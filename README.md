@@ -1,9 +1,9 @@
 # DahuaVTO2MQTT
 Listens to events from Dahua VTO unit and publishes them via MQTT Message
 
-[MQTT Events](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/MQTTEvents.MD)
+[MQTT Events][a relative link](MQTTEvents.MD)
 
-[Supported Models](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/SupportedModels.md)
+[Supported Models][a relative link](SupportedModels.md)
 
 ## Environment Variables
 ```
@@ -86,6 +86,12 @@ services:
   * Added open door action when publishing an MQTT message with the topic - {MQTT_BROKER_TOPIC_PREFIX}/Command/Open
   
   * Reset connection when server sends EOF message gracefully instead of WARNING asyncio socket.send() raised exception
+
+
+* 2021-Mar-18
+  * Updated {MQTT_BROKER_TOPIC_PREFIX}/Command/Open to support 2nd dorrs - added Payloads
+  
+  * HTTPs VTO support fixed
 
 
 
