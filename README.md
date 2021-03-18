@@ -1,9 +1,9 @@
 # DahuaVTO2MQTT
 Listens to events from Dahua VTO unit and publishes them via MQTT Message
 
-[MQTT Events][a relative link](MQTTEvents.MD)
+[MQTT Events](MQTTEvents.MD)
 
-[Supported Models][a relative link](SupportedModels.md)
+[Supported Models](SupportedModels.md)
 
 ## Environment Variables
 ```
