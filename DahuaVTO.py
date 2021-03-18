@@ -55,6 +55,27 @@ def access_control_open_door():
 
         _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
+def access_control_open_door_2():
+    try:
+        _LOGGER.debug("Access Control - Open 2nd door")
+
+        host = os.environ.get('DAHUA_VTO_HOST')
+
+        username = os.environ.get('DAHUA_VTO_USERNAME')
+        password = os.environ.get('DAHUA_VTO_PASSWORD')
+
+        url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel=2&UserID=101&Type=Remote"
+
+        response = requests.get(url, auth=HTTPDigestAuth(username, password))
+
+        response.raise_for_status()
+
+        _LOGGER.info("Access Control - 2nd door was opened")
+
+    except Exception as ex:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+
+        _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
 class DahuaVTOClient(asyncio.Protocol):
     requestId: int
@@ -122,7 +143,10 @@ class DahuaVTOClient(asyncio.Protocol):
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
 
         if msg.topic == mqtt_open_door_topic:
-            access_control_open_door()
+		    if (msg.payload == '1'):
+                access_control_open_door()
+		    if (msg.payload == '2'):
+                access_control_open_door_2()
 
     @staticmethod
     def on_mqtt_disconnect(client, userdata, rc):
