@@ -118,13 +118,12 @@ class DahuaVTOClient(asyncio.Protocol):
         _LOGGER.info("Connecting MQTT Broker")
 
         self.mqtt_client.username_pw_set(self.mqtt_broker_username, self.mqtt_broker_password)
-
         self.mqtt_client.on_connect = self.on_mqtt_connect
         self.mqtt_client.on_message = self.on_mqtt_message
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
 
         self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
-        self.mqtt_client.loop_forever()
+        self.mqtt_client.loop_start()
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
