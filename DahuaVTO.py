@@ -124,7 +124,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
 
         self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
-        self.mqtt_client.loop_start()
+        self.mqtt_client.loop_forever()
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
