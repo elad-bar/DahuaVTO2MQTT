@@ -108,11 +108,24 @@ class DahuaVTOClient(asyncio.Protocol):
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
-        _LOGGER.info(f"MQTT Broker connected with result code {rc}")
-
-        mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
-        mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
-        client.subscribe(mqtt_open_door_topic)
+        if rc == 0:
+            _LOGGER.info(f"MQTT Broker connected with result code {rc}")
+            
+            mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
+            mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
+            client.subscribe(mqtt_open_door_topic)
+        else if rc == 1:
+            logger.error(f"MQTT Broker failed to connect: incorrect protocol version")
+        else if rc == 2:
+            logger.error(f"MQTT Broker failed to connect: invalid client identifier")
+        else if rc == 3:
+            logger.error(f"MQTT Broker failed to connect: server unavailable")
+        else if rc == 4:
+            logger.error(f"MQTT Broker failed to connect: bad username or password")
+        else if rc == 5:
+            logger.error(f"MQTT Broker failed to connect: not authorised")
+        if rc > 0:
+             self._loop.stop()
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
@@ -226,7 +239,7 @@ class DahuaVTOClient(asyncio.Protocol):
         keep_alive_interval = params.get("keepAliveInterval")
 
         if keep_alive_interval is not None:
-            self.keep_alive_interval = params.get("keepAliveInterval") - 5
+            self.keep_alive_interval = keep_alive_interval - 5
 
             Timer(self.keep_alive_interval, self.keep_alive).start()
 
