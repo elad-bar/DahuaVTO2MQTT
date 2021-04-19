@@ -115,15 +115,15 @@ class DahuaVTOClient(asyncio.Protocol):
             mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
             client.subscribe(mqtt_open_door_topic)
         else if rc == 1:
-            logger.error(f"MQTT Broker failed to connect: incorrect protocol version")
+            _LOGGER.error(f"MQTT Broker failed to connect: incorrect protocol version")
         else if rc == 2:
-            logger.error(f"MQTT Broker failed to connect: invalid client identifier")
+            _LOGGER.error(f"MQTT Broker failed to connect: invalid client identifier")
         else if rc == 3:
-            logger.error(f"MQTT Broker failed to connect: server unavailable")
+            _LOGGER.error(f"MQTT Broker failed to connect: server unavailable")
         else if rc == 4:
-            logger.error(f"MQTT Broker failed to connect: bad username or password")
+            _LOGGER.error(f"MQTT Broker failed to connect: bad username or password")
         else if rc == 5:
-            logger.error(f"MQTT Broker failed to connect: not authorised")
+            _LOGGER.error(f"MQTT Broker failed to connect: not authorised")
         if rc > 0:
              self._loop.stop()
 
