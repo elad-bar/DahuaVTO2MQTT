@@ -47,12 +47,20 @@ services:
       - DEBUG=False
 ```
 
+## Commands
+
+#### Open Door
+By publishing MQTT message of {MQTT_BROKER_TOPIC_PREFIX}/Command/Open an HTTP request to the unit will be sent,
+If the payload of the message is empty, default door to open is 1,
+If unit supports more than 1 door, please add to the payload `Door` parameter with the number of the door 
+
 ## Changelog
 
 * 2021-04-22
 
   * Fix Invalid syntax in DahuaVTO.py line 117 [#41](https://github.com/elad-bar/DahuaVTO2MQTT/issues/41)
 
+  * Added support for Door ID in DahuaVTO/Command/Open MQTT command [#29](https://github.com/elad-bar/DahuaVTO2MQTT/issues/29)
 
 * 2020-Dec-11
   

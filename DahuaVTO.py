@@ -43,7 +43,7 @@ MQTT_ERROR_MESSAGES = {
 }
 
 
-def access_control_open_door():
+def access_control_open_door(door_id: int = 1):
     try:
         _LOGGER.debug("Access Control - Open door")
 
@@ -52,7 +52,7 @@ def access_control_open_door():
         username = os.environ.get('DAHUA_VTO_USERNAME')
         password = os.environ.get('DAHUA_VTO_PASSWORD')
 
-        url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel=1&UserID=101&Type=Remote"
+        url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel={door_id}&UserID=101&Type=Remote"
 
         response = requests.get(url, auth=HTTPDigestAuth(username, password))
 
@@ -138,9 +138,11 @@ class DahuaVTOClient(asyncio.Protocol):
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
+        payload_data = {} if msg.payload is None else msg.payload
+        door_id = payload_data.get("Door", 1)
 
         if msg.topic == mqtt_open_door_topic:
-            access_control_open_door()
+            access_control_open_door(door_id)
 
     @staticmethod
     def on_mqtt_disconnect(client, userdata, rc):
