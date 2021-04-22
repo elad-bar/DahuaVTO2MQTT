@@ -49,6 +49,11 @@ services:
 
 ## Changelog
 
+* 2021-04-22
+
+  * Fix Invalid syntax in DahuaVTO.py line 117 [#41](https://github.com/elad-bar/DahuaVTO2MQTT/issues/41)
+
+
 * 2020-Dec-11
   
   * Changed MQTT Client to Mosquitto\Client

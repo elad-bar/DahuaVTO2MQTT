@@ -32,6 +32,16 @@ _LOGGER = logging.getLogger(__name__)
 
 DAHUA_ALLOWED_DETAILS = ["deviceType", "serialNumber"]
 
+MQTT_ERROR_DEFAULT_MESSAGE = "Unknown error"
+
+MQTT_ERROR_MESSAGES = {
+    1: "MQTT Broker failed to connect: incorrect protocol version",
+    2: "MQTT Broker failed to connect: invalid client identifier",
+    3: "MQTT Broker failed to connect: server unavailable",
+    4: "MQTT Broker failed to connect: bad username or password",
+    5: "MQTT Broker failed to connect: not authorised"
+}
+
 
 def access_control_open_door():
     try:
@@ -114,18 +124,13 @@ class DahuaVTOClient(asyncio.Protocol):
             mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
             mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
             client.subscribe(mqtt_open_door_topic)
-        else if rc == 1:
-            _LOGGER.error(f"MQTT Broker failed to connect: incorrect protocol version")
-        else if rc == 2:
-            _LOGGER.error(f"MQTT Broker failed to connect: invalid client identifier")
-        else if rc == 3:
-            _LOGGER.error(f"MQTT Broker failed to connect: server unavailable")
-        else if rc == 4:
-            _LOGGER.error(f"MQTT Broker failed to connect: bad username or password")
-        else if rc == 5:
-            _LOGGER.error(f"MQTT Broker failed to connect: not authorised")
-        if rc > 0:
-             self._loop.stop()
+
+        else:
+            error_message = MQTT_ERROR_MESSAGES.get(rc, MQTT_ERROR_DEFAULT_MESSAGE)
+
+            _LOGGER.error(error_message)
+
+            asyncio.get_event_loop().stop()
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
