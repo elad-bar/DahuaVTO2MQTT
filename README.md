@@ -56,12 +56,6 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
 
 ## Changelog
 
-* 2021-04-22
-
-  * Fix Invalid syntax in DahuaVTO.py line 117 [#41](https://github.com/elad-bar/DahuaVTO2MQTT/issues/41)
-
-  * Added support for Door ID in DahuaVTO/Command/Open MQTT command [#29](https://github.com/elad-bar/DahuaVTO2MQTT/issues/29)
-
 * 2020-Dec-11
   
   * Changed MQTT Client to Mosquitto\Client
@@ -101,6 +95,16 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
   * Reset connection when server sends EOF message gracefully instead of WARNING asyncio socket.send() raised exception
 
 
+* 2021-04-22
+
+  * Fix Invalid syntax in DahuaVTO.py line 117 [#41](https://github.com/elad-bar/DahuaVTO2MQTT/issues/41)
+
+  * Added support for Door ID in DahuaVTO/Command/Open MQTT command [#29](https://github.com/elad-bar/DahuaVTO2MQTT/issues/29)
+
+
+* 2021-04-23
+
+  * Fix Open Door error  
 
 
 ## Credits

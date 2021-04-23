@@ -134,14 +134,19 @@ class DahuaVTOClient(asyncio.Protocol):
 
     @staticmethod
     def on_mqtt_message(client, userdata, msg):
-        _LOGGER.debug(f"MQTT Message {msg.topic}: {msg.payload}")
+        payload = None if msg.payload is None else msg.payload.decode("utf-8")
+
+        _LOGGER.debug(f"MQTT Message {msg.topic}: {payload}")
 
         mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
         mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
-        payload_data = {} if msg.payload is None else msg.payload
-        door_id = payload_data.get("Door", 1)
 
         if msg.topic == mqtt_open_door_topic:
+            door_id = 1
+
+            if payload_data is not None:
+                door_id = payload_data.get("Door", 1)
+
             access_control_open_door(door_id)
 
     @staticmethod
