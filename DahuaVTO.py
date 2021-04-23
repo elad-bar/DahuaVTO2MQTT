@@ -144,8 +144,8 @@ class DahuaVTOClient(asyncio.Protocol):
         if msg.topic == mqtt_open_door_topic:
             door_id = 1
 
-            if payload_data is not None:
-                door_id = payload_data.get("Door", 1)
+            if payload is not None:
+                door_id = payload.get("Door", 1)
 
             access_control_open_door(door_id)
 
