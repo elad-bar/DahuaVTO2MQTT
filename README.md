@@ -104,7 +104,12 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
 
 * 2021-04-23
 
-  * Fix Open Door error  
+  * Fix Open Door error
+  
+* 2021-04-24
+
+  * Removed certificate verification when using SSL [#31](https://github.com/elad-bar/DahuaVTO2MQTT/issues/31)
+  
 
 
 ## Credits

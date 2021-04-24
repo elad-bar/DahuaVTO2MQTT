@@ -54,7 +54,7 @@ def access_control_open_door(door_id: int = 1):
 
         url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel={door_id}&UserID=101&Type=Remote"
 
-        response = requests.get(url, auth=HTTPDigestAuth(username, password))
+        response = requests.get(url, verify=False, auth=HTTPDigestAuth(username, password))
 
         response.raise_for_status()
 
