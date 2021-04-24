@@ -1,9 +1,9 @@
 # DahuaVTO2MQTT
-Listens to events from Dahua VTO unit and publishes them via MQTT Message
+Listens to events from Dahua VTO, Camera, NVR unit and publishes them via MQTT Message
 
-[MQTT Events](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/MQTTEvents.MD)
+[Dahua VTO MQTT Events - examples](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/MQTTEvents.MD)
 
-[Supported Models](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/SupportedModels.md)
+[Tested Models](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/SupportedModels.md) - Should work with all Dahua devices
 
 ## Environment Variables
 ```
