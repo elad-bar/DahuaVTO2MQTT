@@ -110,7 +110,10 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
 
   * Removed certificate verification when using SSL [#31](https://github.com/elad-bar/DahuaVTO2MQTT/issues/31)
   
+* 2021-04-30
 
+  * Changed MQTT message published log level to DEBUG
+  
 
 ## Credits
 All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> who wrote that complicated integration
