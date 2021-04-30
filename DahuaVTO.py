@@ -335,11 +335,11 @@ class DahuaVTOClient(asyncio.Protocol):
         result = None
 
         try:
-            response_parts = str(response).split("\\n")
+            response_parts = str(response).split("\\x00")
             for response_part in response_parts:
-                if "{" in response_part:
-                    start = response_part.index("{")
-                    message = response_part[start:]
+                if response_part.startswith("{"):
+                    end = response_part.rindex("}") + 1
+                    message = response_part[0:end]
 
                     result = json.loads(message)
 
@@ -392,5 +392,8 @@ class DahuaVTOManager:
                 sleep(30)
 
 
+
 manager = DahuaVTOManager()
 manager.initialize()
+
+
