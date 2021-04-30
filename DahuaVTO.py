@@ -32,6 +32,9 @@ _LOGGER = logging.getLogger(__name__)
 
 DAHUA_ALLOWED_DETAILS = ["deviceType", "serialNumber"]
 
+ENDPOINT_ACCESS_CONTROL = "accessControl.cgi?action=openDoor&UserID=101&Type=Remote&channel="
+ENDPOINT_MAGICBOX_SYSINFO = "magicBox.cgi?action=getSystemInfo"
+
 MQTT_ERROR_DEFAULT_MESSAGE = "Unknown error"
 
 MQTT_ERROR_MESSAGES = {
@@ -41,29 +44,6 @@ MQTT_ERROR_MESSAGES = {
     4: "MQTT Broker failed to connect: bad username or password",
     5: "MQTT Broker failed to connect: not authorised"
 }
-
-
-def access_control_open_door(door_id: int = 1):
-    try:
-        _LOGGER.debug("Access Control - Open door")
-
-        host = os.environ.get('DAHUA_VTO_HOST')
-
-        username = os.environ.get('DAHUA_VTO_USERNAME')
-        password = os.environ.get('DAHUA_VTO_PASSWORD')
-
-        url = f"http://{host}/cgi-bin/accessControl.cgi?action=openDoor&channel={door_id}&UserID=101&Type=Remote"
-
-        response = requests.get(url, verify=False, auth=HTTPDigestAuth(username, password))
-
-        response.raise_for_status()
-
-        _LOGGER.info("Access Control - Door was opened")
-
-    except Exception as ex:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-
-        _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
 
 class DahuaVTOClient(asyncio.Protocol):
@@ -77,10 +57,12 @@ class DahuaVTOClient(asyncio.Protocol):
     messages: []
     mqtt_client: mqtt.Client
     dahua_details: {}
+    base_url: str
 
     def __init__(self):
         self.dahua_details = {}
         self.host = os.environ.get('DAHUA_VTO_HOST')
+        self.base_url = f"http://{self.host}/cgi-bin/"
 
         self.username = os.environ.get('DAHUA_VTO_USERNAME')
         self.password = os.environ.get('DAHUA_VTO_PASSWORD')
@@ -101,11 +83,12 @@ class DahuaVTOClient(asyncio.Protocol):
         self.transport = None
 
         self.mqtt_client = mqtt.Client()
-
         self._loop = asyncio.get_event_loop()
 
     def initialize_mqtt_client(self):
         _LOGGER.info("Connecting MQTT Broker")
+
+        self.mqtt_client.user_data_set(self)
 
         self.mqtt_client.username_pw_set(self.mqtt_broker_username, self.mqtt_broker_password)
 
@@ -121,9 +104,7 @@ class DahuaVTOClient(asyncio.Protocol):
         if rc == 0:
             _LOGGER.info(f"MQTT Broker connected with result code {rc}")
             
-            mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
-            mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
-            client.subscribe(mqtt_open_door_topic)
+            client.subscribe(userdata.mqtt_open_door_topic)
 
         else:
             error_message = MQTT_ERROR_MESSAGES.get(rc, MQTT_ERROR_DEFAULT_MESSAGE)
@@ -138,10 +119,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         _LOGGER.debug(f"MQTT Message {msg.topic}: {payload}")
 
-        mqtt_broker_topic_prefix = os.environ.get('MQTT_BROKER_TOPIC_PREFIX')
-        mqtt_open_door_topic = f"{mqtt_broker_topic_prefix}/Command/Open"
-
-        if msg.topic == mqtt_open_door_topic:
+        if msg.topic == userdata.mqtt_open_door_topic:
             data = {}
 
             if payload is not None and len(payload) > 0:
@@ -149,7 +127,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
             door_id = data.get("Door", 1)
 
-            access_control_open_door(door_id)
+            userdata.access_control_open_door(door_id)
 
     @staticmethod
     def on_mqtt_disconnect(client, userdata, rc):
@@ -159,10 +137,7 @@ class DahuaVTOClient(asyncio.Protocol):
             try:
                 _LOGGER.info(f"MQTT Broker got disconnected trying to reconnect")
 
-                mqtt_broker_host = os.environ.get('MQTT_BROKER_HOST')
-                mqtt_broker_port = os.environ.get('MQTT_BROKER_PORT')
-
-                client.connect(mqtt_broker_host, int(mqtt_broker_port), 60)
+                client.connect(userdata.mqtt_broker_host, int(userdata.mqtt_broker_port), 60)
                 client.loop_start()
 
                 connected = True
@@ -230,7 +205,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
                 topic = f"{self.mqtt_broker_topic_prefix}/{code}/Event"
 
-                _LOGGER.info(f"Publishing MQTT message {topic}: {message}")
+                _LOGGER.debug(f"Publishing MQTT message {topic}: {message}")
 
                 self.mqtt_client.publish(topic, json.dumps(message, indent=4))
 
@@ -318,7 +293,7 @@ class DahuaVTOClient(asyncio.Protocol):
         try:
             _LOGGER.debug("Loading Dahua details")
 
-            url = f"http://{self.host}/cgi-bin/magicBox.cgi?action=getSystemInfo"
+            url = f"{self.base_url}{ENDPOINT_MAGICBOX_SYSINFO}"
 
             response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password))
 
@@ -335,6 +310,25 @@ class DahuaVTOClient(asyncio.Protocol):
             exc_type, exc_obj, exc_tb = sys.exc_info()
 
             _LOGGER.error(f"Failed to retrieve Dahua model, error: {ex}, Line: {exc_tb.tb_lineno}")
+
+    def access_control_open_door(self, door_id: int = 1):
+        try:
+            _LOGGER.debug("Access Control - Open door")
+
+            url = f"{self.base_url}{ENDPOINT_ACCESS_CONTROL}{door_id}"
+
+            auth = HTTPDigestAuth(self.username, self.password)
+
+            response = requests.get(url, verify=False, auth=auth)
+
+            response.raise_for_status()
+
+            _LOGGER.info("Access Control - Door was opened")
+
+        except Exception as ex:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+
+            _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     @staticmethod
     def parse_response(response):
