@@ -98,7 +98,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         while not connected:
             try:
-                _LOGGER.info(f"MQTT Broker is trying to connect...")
+                _LOGGER.info("MQTT Broker is trying to connect...")
 
                 self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
                 self.mqtt_client.loop_start()
