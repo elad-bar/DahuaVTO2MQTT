@@ -86,8 +86,8 @@ class DahuaVTOClient(asyncio.Protocol):
         self._loop = asyncio.get_event_loop()
 
     def initialize_mqtt_client(self):
-        _LOGGER.info("Connecting MQTT Broker")
-
+        _LOGGER.info("Initializing MQTT Broker")
+        connected = False
         self.mqtt_client.user_data_set(self)
 
         self.mqtt_client.username_pw_set(self.mqtt_broker_username, self.mqtt_broker_password)
@@ -96,14 +96,30 @@ class DahuaVTOClient(asyncio.Protocol):
         self.mqtt_client.on_message = self.on_mqtt_message
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
 
-        self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
-        self.mqtt_client.loop_start()
+        while not connected:
+            try:
+                _LOGGER.info(f"MQTT Broker is trying to connect...")
+
+                self.mqtt_client.connect(self.mqtt_broker_host, int(self.mqtt_broker_port), 60)
+                self.mqtt_client.loop_start()
+
+                connected = True
+
+            except Exception as ex:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+
+                _LOGGER.error(f"Failed to connect to broker, retry in 60 seconds, error: {ex}, Line: {exc_tb.tb_lineno}")
+
+                sleep(60)
+
+
+
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
         if rc == 0:
             _LOGGER.info(f"MQTT Broker connected with result code {rc}")
-            
+
             client.subscribe(userdata.mqtt_open_door_topic)
 
         else:
@@ -135,7 +151,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         while not connected:
             try:
-                _LOGGER.info(f"MQTT Broker got disconnected trying to reconnect")
+                _LOGGER.info(f"MQTT Broker got disconnected, trying to reconnect...")
 
                 client.connect(userdata.mqtt_broker_host, int(userdata.mqtt_broker_port), 60)
                 client.loop_start()
