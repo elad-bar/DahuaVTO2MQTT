@@ -86,7 +86,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self._loop = asyncio.get_event_loop()
 
     def initialize_mqtt_client(self):
-        _LOGGER.info("V1: Connecting MQTT Broker")
+        _LOGGER.info("Initializing MQTT Broker")
         connected = False
         self.mqtt_client.user_data_set(self)
 
@@ -151,7 +151,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         while not connected:
             try:
-                _LOGGER.info(f"MQTT Broker got disconnected trying to reconnect")
+                _LOGGER.info(f"MQTT Broker got disconnected, trying to reconnect...")
 
                 client.connect(userdata.mqtt_broker_host, int(userdata.mqtt_broker_port), 60)
                 client.loop_start()
