@@ -8,6 +8,21 @@ Publish MQTT Message to perform action
 TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/Open
 ```
 
+## Lock State
+Topic [MQTT_BROKER_TOPIC_PREFIX]/MagneticLock/Status represents the locking status,
+Works only if the lock released by the DahuaVTO2MQTT
+
+Since there is not real indication, it pulls from the configuration of the unit the interval allowed between unlocks (as defined in the Web Manager of the unit),
+
+It will also protect duplicate attempts while the magnetic lock is in unlock interval
+
+```json
+{
+    "door":"Door ID",
+    "isLocked":"true/false"
+}
+```
+
 ## Events (With dedicated additional data)
 Topic will be always [MQTT_BROKER_TOPIC_PREFIX]/[EVENT NAME]/Event
 Message represent an event

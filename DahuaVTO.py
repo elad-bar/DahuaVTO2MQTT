@@ -58,6 +58,8 @@ class DahuaVTOClient(asyncio.Protocol):
     mqtt_client: mqtt.Client
     dahua_details: {}
     base_url: str
+    hold_time: int
+    lock_status: {}
 
     def __init__(self):
         self.dahua_details = {}
@@ -81,6 +83,8 @@ class DahuaVTOClient(asyncio.Protocol):
         self.sessionId = 0
         self.keep_alive_interval = 0
         self.transport = None
+        self.hold_time = 0
+        self.lock_status = {}
 
         self.mqtt_client = mqtt.Client()
         self._loop = asyncio.get_event_loop()
@@ -111,9 +115,6 @@ class DahuaVTOClient(asyncio.Protocol):
                 _LOGGER.error(f"Failed to connect to broker, retry in 60 seconds, error: {ex}, Line: {exc_tb.tb_lineno}")
 
                 sleep(60)
-
-
-
 
     @staticmethod
     def on_mqtt_connect(client, userdata, flags, rc):
@@ -197,6 +198,9 @@ class DahuaVTOClient(asyncio.Protocol):
             elif message_id == 2:
                 self.handle_login(params)
 
+            elif message_id == 3:
+                self.handle_config(params)
+
             else:
                 method = message.get("method")
 
@@ -240,6 +244,17 @@ class DahuaVTOClient(asyncio.Protocol):
 
             self.login()
 
+    def handle_config(self, params):
+        table = params.get("table")
+
+        for item in table:
+            access_control = item.get('AccessProtocol')
+
+            if access_control == 'Local':
+                self.hold_time = item.get('UnlockReloadInterval')
+
+                _LOGGER.info(f"Hold time: {self.hold_time}")
+
     def handle_login(self, params):
         keep_alive_interval = params.get("keepAliveInterval")
 
@@ -248,6 +263,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
             Timer(self.keep_alive_interval, self.keep_alive).start()
 
+            self.load_configuration()
             self.attach_event_manager()
 
     def eof_received(self):
@@ -295,6 +311,14 @@ class DahuaVTOClient(asyncio.Protocol):
 
         self.send(message_data)
 
+    def load_configuration(self):
+        _LOGGER.info("Get configuration")
+
+        message_data = MessageData(self.request_id, self.sessionId)
+        message_data.load_configuration()
+
+        self.send(message_data)
+
     def keep_alive(self):
         _LOGGER.debug("Keep alive")
 
@@ -328,23 +352,53 @@ class DahuaVTOClient(asyncio.Protocol):
             _LOGGER.error(f"Failed to retrieve Dahua model, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     def access_control_open_door(self, door_id: int = 1):
+        is_locked = self.lock_status.get(door_id, False)
+        should_unlock = False
+
         try:
-            _LOGGER.debug("Access Control - Open door")
+            if is_locked:
+                _LOGGER.info(f"Access Control - Door #{door_id} is already unlocked, ignoring request")
 
-            url = f"{self.base_url}{ENDPOINT_ACCESS_CONTROL}{door_id}"
+            else:
+                is_locked = True
+                should_unlock = True
 
-            auth = HTTPDigestAuth(self.username, self.password)
+                self.lock_status[door_id] = is_locked
+                self.publish_lock_state(door_id, False)
 
-            response = requests.get(url, verify=False, auth=auth)
+                url = f"{self.base_url}{ENDPOINT_ACCESS_CONTROL}{door_id}"
 
-            response.raise_for_status()
+                auth = HTTPDigestAuth(self.username, self.password)
 
-            _LOGGER.info("Access Control - Door was opened")
+                response = requests.get(url, verify=False, auth=auth)
+
+                response.raise_for_status()
 
         except Exception as ex:
             exc_type, exc_obj, exc_tb = sys.exc_info()
 
             _LOGGER.error(f"Failed to open door, error: {ex}, Line: {exc_tb.tb_lineno}")
+
+        if should_unlock and is_locked:
+            Timer(float(self.hold_time), self.magnetic_unlock, (self, door_id)).start()
+
+    @staticmethod
+    def magnetic_unlock(self, door_id):
+        self.lock_status[door_id] = False
+        self.publish_lock_state(door_id, True)
+
+    def publish_lock_state(self, door_id: int, is_locked: bool):
+        state = "Locked" if is_locked else "Unlocked"
+
+        _LOGGER.info(f"Access Control - {state} magnetic lock #{door_id}")
+
+        topic = f"{self.mqtt_broker_topic_prefix}/MagneticLock/Status"
+        message = {
+            "door": door_id,
+            "isLocked": is_locked
+        }
+
+        self.mqtt_client.publish(topic, json.dumps(message, indent=4))
 
     @staticmethod
     def parse_response(response):
@@ -406,8 +460,6 @@ class DahuaVTOManager:
                 _LOGGER.error(f"Connection failed will try to connect in 30 seconds, error: {ex}, Line: {line}")
 
                 sleep(30)
-
-
 
 manager = DahuaVTOManager()
 manager.initialize()

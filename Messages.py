@@ -25,6 +25,10 @@ class MessageParams:
     codes: []
     timeout: int
     action: bool
+    name: str
+
+    def load_configuration(self):
+        self.name = 'AccessControl'
 
     def keep_alive(self, timeout):
         self.timeout = timeout
@@ -64,6 +68,13 @@ class MessageData:
         params.login(username, password)
 
         self.method = "global.login"
+        self.params = params
+
+    def load_configuration(self):
+        params = MessageParams()
+        params.load_configuration()
+
+        self.method = "configManager.getConfig"
         self.params = params
 
     def attach(self):
