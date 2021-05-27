@@ -342,7 +342,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
             url = f"{self.base_url}{ENDPOINT_MAGICBOX_SYSINFO}"
 
-            response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password))
+            response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False)
 
             response.raise_for_status()
 
