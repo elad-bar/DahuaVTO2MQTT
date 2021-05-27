@@ -9,7 +9,7 @@ TOPIC: [MQTT_BROKER_TOPIC_PREFIX]/Command/Open
 ```
 
 ## Lock State
-Topic [MQTT_BROKER_TOPIC_PREFIX]/MagneticLock/Status represents the locking status,
+Topic `[MQTT_BROKER_TOPIC_PREFIX]/MagneticLock/Status` represents the locking status,
 Works only if the lock released by the DahuaVTO2MQTT
 
 Since there is not real indication, it pulls from the configuration of the unit the interval allowed between unlocks (as defined in the Web Manager of the unit),

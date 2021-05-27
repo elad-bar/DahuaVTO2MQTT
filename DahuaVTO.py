@@ -15,7 +15,12 @@ from requests.auth import HTTPDigestAuth
 
 from Messages import MessageData
 
-DEBUG = os.environ.get('DEBUG', False)
+DEBUG = str(os.environ.get('DEBUG', False)).lower() == str(True).lower()
+
+PROTOCOLS = {
+    True: "https",
+    False: "http"
+}
 
 log_level = logging.DEBUG if DEBUG else logging.INFO
 
@@ -64,7 +69,9 @@ class DahuaVTOClient(asyncio.Protocol):
     def __init__(self):
         self.dahua_details = {}
         self.host = os.environ.get('DAHUA_VTO_HOST')
-        self.base_url = f"http://{self.host}/cgi-bin/"
+        self.is_ssl = str(os.environ.get('DAHUA_VTO_SSL', False)).lower() == str(True).lower()
+
+        self.base_url = f"{PROTOCOLS[self.is_ssl]}://{self.host}/cgi-bin/"
 
         self.username = os.environ.get('DAHUA_VTO_USERNAME')
         self.password = os.environ.get('DAHUA_VTO_PASSWORD')

@@ -119,6 +119,7 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
   
   * Added Lock State status to prevent duplicate attempts of unlock (which led to error log message since the unit didn't allow that operation)
   * Publish MQTT message with the lock status, more details in the [Dahua VTO MQTT Events - examples](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/MQTTEvents.MD) section
+  * SSL support using new environment variable `DAHUA_VTO_SSL`
   
 
 ## Credits
