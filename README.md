@@ -105,22 +105,30 @@ If unit supports more than 1 door, please add to the payload `Door` parameter wi
 * 2021-04-23
 
   * Fix Open Door error
+
   
 * 2021-04-24
 
   * Removed certificate verification when using SSL [#31](https://github.com/elad-bar/DahuaVTO2MQTT/issues/31)
+
   
 * 2021-04-30
 
   * Changed MQTT message published log level to DEBUG
   * Fix DahuaVTOClient doesn't handle packets larger than Ethernet frame [#37](https://github.com/elad-bar/DahuaVTO2MQTT/issues/37)
   
+
 * 2021-05-27
   
   * Added Lock State status to prevent duplicate attempts of unlock (which led to error log message since the unit didn't allow that operation)
   * Publish MQTT message with the lock status, more details in the [Dahua VTO MQTT Events - examples](https://github.com/elad-bar/DahuaVTO2MQTT/blob/master/MQTTEvents.MD) section
   * SSL support using new environment variable `DAHUA_VTO_SSL`
+
   
+* 2021-05-28
+  
+  * All requests to Dahua unit are using socket (except open lock)
+
 
 ## Credits
 All credits goes to <a href="https://github.com/riogrande75">@riogrande75</a> who wrote that complicated integration

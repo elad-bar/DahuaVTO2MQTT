@@ -35,7 +35,13 @@ root.addHandler(handler)
 
 _LOGGER = logging.getLogger(__name__)
 
-DAHUA_ALLOWED_DETAILS = ["deviceType", "serialNumber"]
+DAHUA_DEVICE_TYPE = "deviceType"
+DAHUA_SERIAL_NUMBER = "serialNumber"
+
+DAHUA_ALLOWED_DETAILS = [
+    DAHUA_DEVICE_TYPE, 
+    DAHUA_SERIAL_NUMBER
+]
 
 ENDPOINT_ACCESS_CONTROL = "accessControl.cgi?action=openDoor&UserID=101&Type=Remote&channel="
 ENDPOINT_MAGICBOX_SYSINFO = "magicBox.cgi?action=getSystemInfo"
@@ -65,6 +71,7 @@ class DahuaVTOClient(asyncio.Protocol):
     base_url: str
     hold_time: int
     lock_status: {}
+    auth: HTTPDigestAuth
 
     def __init__(self):
         self.dahua_details = {}
@@ -75,6 +82,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
         self.username = os.environ.get('DAHUA_VTO_USERNAME')
         self.password = os.environ.get('DAHUA_VTO_PASSWORD')
+        self.auth = HTTPDigestAuth(self.username, self.password)
 
         self.mqtt_broker_host = os.environ.get('MQTT_BROKER_HOST')
         self.mqtt_broker_port = os.environ.get('MQTT_BROKER_PORT')
@@ -179,7 +187,6 @@ class DahuaVTOClient(asyncio.Protocol):
         try:
             self.transport = transport
 
-            self.load_dahua_info()
             self.initialize_mqtt_client()
             self.pre_login()
 
@@ -206,7 +213,16 @@ class DahuaVTOClient(asyncio.Protocol):
                 self.handle_login(params)
 
             elif message_id == 3:
-                self.handle_config(params)
+                self.handle_access_control(params)
+
+            elif message_id == 4:
+                self.handle_version(params)
+
+            elif message_id == 5:
+                self.handle_serial_number(params)
+
+            elif message_id == 6:
+                self.handle_device_type(params)
 
             else:
                 method = message.get("method")
@@ -251,7 +267,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
             self.login()
 
-    def handle_config(self, params):
+    def handle_access_control(self, params):
         table = params.get("table")
 
         for item in table:
@@ -261,6 +277,29 @@ class DahuaVTOClient(asyncio.Protocol):
                 self.hold_time = item.get('UnlockReloadInterval')
 
                 _LOGGER.info(f"Hold time: {self.hold_time}")
+                
+    def handle_version(self, params):
+        version_details = params.get("version", {})
+        build_date = version_details.get("BuildDate")
+        version = version_details.get("Version")
+
+        _LOGGER.info(f"Version: {version}, Build Date: {build_date}")              
+    
+    def handle_serial_number(self, params):
+        table = params.get("table", {})
+        serial_number = table.get("UUID")
+
+        self.dahua_details[DAHUA_SERIAL_NUMBER] = serial_number
+
+        _LOGGER.info(f"Serial Number: {serial_number}")              
+    
+    def handle_device_type(self, params):
+        device_type = params.get("type")
+
+        self.dahua_details[DAHUA_DEVICE_TYPE] = device_type
+
+        _LOGGER.info(f"Device Type: {device_type}") 
+
 
     def handle_login(self, params):
         keep_alive_interval = params.get("keepAliveInterval")
@@ -270,7 +309,10 @@ class DahuaVTOClient(asyncio.Protocol):
 
             Timer(self.keep_alive_interval, self.keep_alive).start()
 
-            self.load_configuration()
+            self.access_control()
+            self.version()
+            self.serial_number()
+            self.device_type()
             self.attach_event_manager()
 
     def eof_received(self):
@@ -318,11 +360,35 @@ class DahuaVTOClient(asyncio.Protocol):
 
         self.send(message_data)
 
-    def load_configuration(self):
-        _LOGGER.info("Get configuration")
+    def access_control(self):
+        _LOGGER.info("Get access control configuration")
 
         message_data = MessageData(self.request_id, self.sessionId)
-        message_data.load_configuration()
+        message_data.access_control()
+
+        self.send(message_data)
+
+    def version(self):
+        _LOGGER.info("Get version")
+
+        message_data = MessageData(self.request_id, self.sessionId)
+        message_data.version()
+
+        self.send(message_data)
+
+    def device_type(self):
+        _LOGGER.info("Get device type")
+
+        message_data = MessageData(self.request_id, self.sessionId)
+        message_data.device_type()
+
+        self.send(message_data)
+
+    def serial_number(self):
+        _LOGGER.info("Get serial number")
+
+        message_data = MessageData(self.request_id, self.sessionId)
+        message_data.serial_number()
 
         self.send(message_data)
 
@@ -335,28 +401,6 @@ class DahuaVTOClient(asyncio.Protocol):
         self.send(message_data)
 
         Timer(self.keep_alive_interval, self.keep_alive).start()
-
-    def load_dahua_info(self):
-        try:
-            _LOGGER.debug("Loading Dahua details")
-
-            url = f"{self.base_url}{ENDPOINT_MAGICBOX_SYSINFO}"
-
-            response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False)
-
-            response.raise_for_status()
-
-            lines = response.text.split("\r\n")
-
-            for line in lines:
-                if "=" in line:
-                    parts = line.split("=")
-                    self.dahua_details[parts[0]] = parts[1]
-
-        except Exception as ex:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-
-            _LOGGER.error(f"Failed to retrieve Dahua model, error: {ex}, Line: {exc_tb.tb_lineno}")
 
     def access_control_open_door(self, door_id: int = 1):
         is_locked = self.lock_status.get(door_id, False)
@@ -375,9 +419,7 @@ class DahuaVTOClient(asyncio.Protocol):
 
                 url = f"{self.base_url}{ENDPOINT_ACCESS_CONTROL}{door_id}"
 
-                auth = HTTPDigestAuth(self.username, self.password)
-
-                response = requests.get(url, verify=False, auth=auth)
+                response = requests.get(url, verify=False, auth=self.auth)
 
                 response.raise_for_status()
 

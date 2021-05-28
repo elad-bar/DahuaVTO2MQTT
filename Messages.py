@@ -27,8 +27,8 @@ class MessageParams:
     action: bool
     name: str
 
-    def load_configuration(self):
-        self.name = 'AccessControl'
+    def set_name(self, name):
+        self.name = name
 
     def keep_alive(self, timeout):
         self.timeout = timeout
@@ -70,9 +70,29 @@ class MessageData:
         self.method = "global.login"
         self.params = params
 
-    def load_configuration(self):
+    def access_control(self):
         params = MessageParams()
-        params.load_configuration()
+        params.set_name('AccessControl')
+
+        self.method = "configManager.getConfig"
+        self.params = params
+
+    def version(self):
+        params = MessageParams()
+        
+        self.method = "magicBox.getSoftwareVersion"
+        self.params = params
+
+    def device_type(self):
+        params = MessageParams()
+        
+        self.method = "magicBox.getDeviceType"
+        self.params = params
+
+
+    def serial_number(self):
+        params = MessageParams()
+        params.set_name('T2UServer')
 
         self.method = "configManager.getConfig"
         self.params = params
