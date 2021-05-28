@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import struct
 import sys
 import logging
 import json
@@ -8,12 +9,10 @@ import asyncio
 import hashlib
 from threading import Timer
 from time import sleep
-from typing import Optional
+from typing import Optional, Callable
 import paho.mqtt.client as mqtt
 import requests
 from requests.auth import HTTPDigestAuth
-
-from Messages import MessageData
 
 DEBUG = str(os.environ.get('DEBUG', False)).lower() == str(True).lower()
 
@@ -27,16 +26,25 @@ log_level = logging.DEBUG if DEBUG else logging.INFO
 root = logging.getLogger()
 root.setLevel(log_level)
 
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(log_level)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(log_level)
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-handler.setFormatter(formatter)
-root.addHandler(handler)
+stream_handler.setFormatter(formatter)
+root.addHandler(stream_handler)
 
 _LOGGER = logging.getLogger(__name__)
 
 DAHUA_DEVICE_TYPE = "deviceType"
 DAHUA_SERIAL_NUMBER = "serialNumber"
+DAHUA_VERSION = "version"
+DAHUA_BUILD_DATE = "buildDate"
+
+DAHUA_GLOBAL_LOGIN = "global.login"
+DAHUA_GLOBAL_KEEPALIVE = "global.keepAlive"
+DAHUA_EVENT_MANAGER_ATTACH = "eventManager.attach"
+DAHUA_CONFIG_MANAGER_GETCONFIG = "configManager.getConfig"
+DAHUA_MAGICBOX_GETSOFTWAREVERSION = "magicBox.getSoftwareVersion"
+DAHUA_MAGICBOX_GETDEVICETYPE = "magicBox.getDeviceType"
 
 DAHUA_ALLOWED_DETAILS = [
     DAHUA_DEVICE_TYPE, 
@@ -72,6 +80,7 @@ class DahuaVTOClient(asyncio.Protocol):
     hold_time: int
     lock_status: {}
     auth: HTTPDigestAuth
+    data_handlers: {}
 
     def __init__(self):
         self.dahua_details = {}
@@ -100,6 +109,7 @@ class DahuaVTOClient(asyncio.Protocol):
         self.transport = None
         self.hold_time = 0
         self.lock_status = {}
+        self.data_handlers = {}
 
         self.mqtt_client = mqtt.Client()
         self._loop = asyncio.get_event_loop()
@@ -126,8 +136,9 @@ class DahuaVTOClient(asyncio.Protocol):
 
             except Exception as ex:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
+                error_details = f"error: {ex}, Line: {exc_tb.tb_lineno}"
 
-                _LOGGER.error(f"Failed to connect to broker, retry in 60 seconds, error: {ex}, Line: {exc_tb.tb_lineno}")
+                _LOGGER.error(f"Failed to connect to broker, retry in 60 seconds, {error_details}")
 
                 sleep(60)
 
@@ -201,34 +212,9 @@ class DahuaVTOClient(asyncio.Protocol):
             _LOGGER.debug(f"Data received: {message}")
 
             message_id = message.get("id")
-            params = message.get("params")
 
-            if message_id == 1:
-                error = message.get("error")
-
-                if error is not None:
-                    self.handle_login_error(error, message, params)
-
-            elif message_id == 2:
-                self.handle_login(params)
-
-            elif message_id == 3:
-                self.handle_access_control(params)
-
-            elif message_id == 4:
-                self.handle_version(params)
-
-            elif message_id == 5:
-                self.handle_serial_number(params)
-
-            elif message_id == 6:
-                self.handle_device_type(params)
-
-            else:
-                method = message.get("method")
-
-                if method == "client.notifyEventStream":
-                    self.handle_notify_event_stream(params)
+            handler: Callable = self.data_handlers.get(message_id, self.handle_default)
+            handler(message)
 
         except Exception as ex:
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -257,63 +243,8 @@ class DahuaVTOClient(asyncio.Protocol):
 
             _LOGGER.error(f"Failed to handle event, error: {ex}, Line: {exc_tb.tb_lineno}")
 
-    def handle_login_error(self, error, message, params):
-        error_message = error.get("message")
-
-        if error_message == "Component error: login challenge!":
-            self.random = params.get("random")
-            self.realm = params.get("realm")
-            self.sessionId = message.get("session")
-
-            self.login()
-
-    def handle_access_control(self, params):
-        table = params.get("table")
-
-        for item in table:
-            access_control = item.get('AccessProtocol')
-
-            if access_control == 'Local':
-                self.hold_time = item.get('UnlockReloadInterval')
-
-                _LOGGER.info(f"Hold time: {self.hold_time}")
-                
-    def handle_version(self, params):
-        version_details = params.get("version", {})
-        build_date = version_details.get("BuildDate")
-        version = version_details.get("Version")
-
-        _LOGGER.info(f"Version: {version}, Build Date: {build_date}")              
-    
-    def handle_serial_number(self, params):
-        table = params.get("table", {})
-        serial_number = table.get("UUID")
-
-        self.dahua_details[DAHUA_SERIAL_NUMBER] = serial_number
-
-        _LOGGER.info(f"Serial Number: {serial_number}")              
-    
-    def handle_device_type(self, params):
-        device_type = params.get("type")
-
-        self.dahua_details[DAHUA_DEVICE_TYPE] = device_type
-
-        _LOGGER.info(f"Device Type: {device_type}") 
-
-
-    def handle_login(self, params):
-        keep_alive_interval = params.get("keepAliveInterval")
-
-        if keep_alive_interval is not None:
-            self.keep_alive_interval = keep_alive_interval - 5
-
-            Timer(self.keep_alive_interval, self.keep_alive).start()
-
-            self.access_control()
-            self.version()
-            self.serial_number()
-            self.device_type()
-            self.attach_event_manager()
+    def handle_default(self, message):
+        _LOGGER.info(f"Data received without handler: {message}")
 
     def eof_received(self):
         _LOGGER.info('Server sent EOF message')
@@ -325,82 +256,197 @@ class DahuaVTOClient(asyncio.Protocol):
 
         self._loop.stop()
 
-    def send(self, message_data: MessageData):
+    def send(self, action, handler, params=None):
+        if params is None:
+            params = {}
+
         self.request_id += 1
 
-        message_data.id = self.request_id
+        message_data = {
+            "id": self.request_id,
+            "session": self.sessionId,
+            "magic": "0x1234",
+            "method": action,
+            "params": params
+        }
+
+        self.data_handlers[self.request_id] = handler
 
         if not self.transport.is_closing():
-            self.transport.write(message_data.to_message())
+            message = self.convert_message(message_data)
+
+            self.transport.write(message)
+
+    @staticmethod
+    def convert_message(data):
+        message_data = json.dumps(data, indent=4)
+
+        header = struct.pack(">L", 0x20000000)
+        header += struct.pack(">L", 0x44484950)
+        header += struct.pack(">d", 0)
+        header += struct.pack("<L", len(message_data))
+        header += struct.pack("<L", 0)
+        header += struct.pack("<L", len(message_data))
+        header += struct.pack("<L", 0)
+
+        message = header + message_data.encode("utf-8")
+
+        return message
 
     def pre_login(self):
         _LOGGER.debug("Prepare pre-login message")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.login(self.username)
+        def handle_pre_login(message):
+            error = message.get("error")
+            params = message.get("params")
 
-        if not self.transport.is_closing():
-            self.transport.write(message_data.to_message())
+            if error is not None:
+                error_message = error.get("message")
+
+                if error_message == "Component error: login challenge!":
+                    self.random = params.get("random")
+                    self.realm = params.get("realm")
+                    self.sessionId = message.get("session")
+
+                    self.login()
+
+        request_data = {
+            "clientType": "",
+            "ipAddr": "(null)",
+            "loginType": "Direct",
+            "userName": self.username,
+            "password": ""
+        }
+
+        self.send(DAHUA_GLOBAL_LOGIN, handle_pre_login, request_data)
 
     def login(self):
         _LOGGER.debug("Prepare login message")
 
+        def handle_login(message):
+            params = message.get("params")
+            keep_alive_interval = params.get("keepAliveInterval")
+
+            if keep_alive_interval is not None:
+                self.keep_alive_interval = keep_alive_interval - 5
+
+                self.load_access_control()
+                self.load_version()
+                self.load_serial_number()
+                self.load_device_type()
+                self.attach_event_manager()
+
+                Timer(self.keep_alive_interval, self.keep_alive).start()
+
         password = self._get_hashed_password(self.random, self.realm, self.username, self.password)
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.login(self.username, password)
+        request_data = {
+            "clientType": "",
+            "ipAddr": "(null)",
+            "loginType": "Direct",
+            "userName": self.username,
+            "password": password,
+            "authorityType": "Default"
+        }
 
-        self.send(message_data)
+        self.send(DAHUA_GLOBAL_LOGIN, handle_login, request_data)
 
     def attach_event_manager(self):
         _LOGGER.info("Attach event manager")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.attach()
+        def handle_attach_event_manager(message):
+            method = message.get("method")
+            params = message.get("params")
 
-        self.send(message_data)
+            if method == "client.notifyEventStream":
+                self.handle_notify_event_stream(params)
 
-    def access_control(self):
+        request_data = {
+            "codes": ['All']
+        }
+
+        self.send(DAHUA_EVENT_MANAGER_ATTACH, handle_attach_event_manager, request_data)
+
+    def load_access_control(self):
         _LOGGER.info("Get access control configuration")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.access_control()
+        def handle_access_control(message):
+            params = message.get("params")
+            table = params.get("table")
 
-        self.send(message_data)
+            for item in table:
+                access_control = item.get('AccessProtocol')
 
-    def version(self):
+                if access_control == 'Local':
+                    self.hold_time = item.get('UnlockReloadInterval')
+
+                    _LOGGER.info(f"Hold time: {self.hold_time}")
+
+        request_data = {
+            "name": "AccessControl"
+        }
+
+        self.send(DAHUA_CONFIG_MANAGER_GETCONFIG, handle_access_control, request_data)
+
+    def load_version(self):
         _LOGGER.info("Get version")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.version()
+        def handle_version(message):
+            params = message.get("params")
+            version_details = params.get("version", {})
+            build_date = version_details.get("BuildDate")
+            version = version_details.get("Version")
 
-        self.send(message_data)
+            self.dahua_details[DAHUA_VERSION] = version
+            self.dahua_details[DAHUA_BUILD_DATE] = build_date
 
-    def device_type(self):
+            _LOGGER.info(f"Version: {version}, Build Date: {build_date}")
+
+        self.send(DAHUA_MAGICBOX_GETSOFTWAREVERSION, handle_version)
+
+    def load_device_type(self):
         _LOGGER.info("Get device type")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.device_type()
+        def handle_device_type(message):
+            params = message.get("params")
+            device_type = params.get("type")
 
-        self.send(message_data)
+            self.dahua_details[DAHUA_DEVICE_TYPE] = device_type
 
-    def serial_number(self):
+            _LOGGER.info(f"Device Type: {device_type}")
+
+        self.send(DAHUA_MAGICBOX_GETDEVICETYPE, handle_device_type)
+
+    def load_serial_number(self):
         _LOGGER.info("Get serial number")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.serial_number()
+        def handle_serial_number(message):
+            params = message.get("params")
+            table = params.get("table", {})
+            serial_number = table.get("UUID")
 
-        self.send(message_data)
+            self.dahua_details[DAHUA_SERIAL_NUMBER] = serial_number
+
+            _LOGGER.info(f"Serial Number: {serial_number}")
+
+        request_data = {
+            "name": "T2UServer"
+        }
+
+        self.send(DAHUA_CONFIG_MANAGER_GETCONFIG, handle_serial_number, request_data)
 
     def keep_alive(self):
         _LOGGER.debug("Keep alive")
 
-        message_data = MessageData(self.request_id, self.sessionId)
-        message_data.keep_alive(self.keep_alive_interval)
+        def handle_keep_alive(message):
+            Timer(self.keep_alive_interval, self.keep_alive).start()
 
-        self.send(message_data)
+        request_data = {
+            "timeout": self.keep_alive_interval,
+            "action": True
+        }
 
-        Timer(self.keep_alive_interval, self.keep_alive).start()
+        self.send(DAHUA_GLOBAL_KEEPALIVE, handle_keep_alive, request_data)
 
     def access_control_open_door(self, door_id: int = 1):
         is_locked = self.lock_status.get(door_id, False)
@@ -510,7 +556,6 @@ class DahuaVTOManager:
 
                 sleep(30)
 
+
 manager = DahuaVTOManager()
 manager.initialize()
-
-
